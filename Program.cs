@@ -1,18 +1,12 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using NuhhlerAdventBot.BotApi;
 
 namespace NuhhlerAdventBot;
 
 internal class Program
 {
-    private static void Main(string[] args)
+    private static async Task Main(string[] args)
     {
-        IConfiguration config = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.json", false)
-            .Build();
-
-        var botConfig = config.GetSection("BotConfig").Get<BotConfig>();
-
-        Console.WriteLine(botConfig.BotToken);
+        var connect = new Connect();
+        await connect.StartBot();
     }
 }
