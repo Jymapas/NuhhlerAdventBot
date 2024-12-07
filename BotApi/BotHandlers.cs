@@ -9,6 +9,7 @@ public class BotHandlers
 {
     private readonly ITelegramBotClient _botClient;
     private readonly BotConfig _botConfig;
+    private CancellationToken _cancellationToken;
 
     public BotHandlers(ITelegramBotClient botClient, BotConfig botConfig)
     {
@@ -19,6 +20,8 @@ public class BotHandlers
     public async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update,
         CancellationToken cancellationToken)
     {
+        _cancellationToken = cancellationToken;
+
         if (update.Type == UpdateType.Message && update.Message?.Text != null)
         {
             var message = update.Message;
@@ -34,10 +37,10 @@ public class BotHandlers
             switch (command)
             {
                 case "/start":
-                    await botClient.SendTextMessageAsync(
+                    await botClient.SendMessage(
                         chatId,
                         "Добро пожаловать! Я адвент-календарь бот.",
-                        cancellationToken: cancellationToken
+                        cancellationToken: _cancellationToken
                     );
                     break;
 
@@ -52,18 +55,18 @@ public class BotHandlers
                     if (IsAdmin(fromId))
                         await HandleAdminCommand(command, argument, chatId, cancellationToken);
                     else
-                        await botClient.SendTextMessageAsync(
+                        await botClient.SendMessage(
                             chatId,
                             "У вас нет прав для выполнения этой команды.",
-                            cancellationToken: cancellationToken
+                            cancellationToken: _cancellationToken
                         );
                     break;
 
                 default:
-                    await botClient.SendTextMessageAsync(
+                    await botClient.SendMessage(
                         chatId,
                         "Извините, я понимаю только команды.",
-                        cancellationToken: cancellationToken
+                        cancellationToken: _cancellationToken
                     );
                     break;
             }
@@ -91,10 +94,10 @@ public class BotHandlers
     private async Task HandleAdventCommand(long chatId, CancellationToken cancellationToken)
     {
         // TODO: Add /advent command logic
-        await _botClient.SendTextMessageAsync(
+        await _botClient.SendMessage(
             chatId,
             "Команда /advent пока не реализована.",
-            cancellationToken: cancellationToken
+            cancellationToken: _cancellationToken
         );
     }
 
@@ -104,59 +107,59 @@ public class BotHandlers
         switch (command)
         {
             case "/set":
-                await HandleSetCommand(argument, chatId, cancellationToken);
+                await HandleSetCommand(argument, chatId);
                 break;
             case "/edit":
-                await HandleEditCommand(argument, chatId, cancellationToken);
+                await HandleEditCommand(argument, chatId);
                 break;
             case "/delete":
-                await HandleDeleteCommand(argument, chatId, cancellationToken);
+                await HandleDeleteCommand(argument, chatId);
                 break;
             case "/check":
-                await HandleCheckCommand(argument, chatId, cancellationToken);
+                await HandleCheckCommand(argument, chatId);
                 break;
         }
     }
 
     // Admin commands
 
-    private async Task HandleSetCommand(string argument, long chatId, CancellationToken cancellationToken)
+    private async Task HandleSetCommand(string argument, long chatId)
     {
         // TODO: Реализовать логику команды /set
-        await _botClient.SendTextMessageAsync(
+        await _botClient.SendMessage(
             chatId,
             $"Команда /set с аргументом '{argument}' пока не реализована.",
-            cancellationToken: cancellationToken
+            cancellationToken: _cancellationToken
         );
     }
 
-    private async Task HandleEditCommand(string argument, long chatId, CancellationToken cancellationToken)
+    private async Task HandleEditCommand(string argument, long chatId)
     {
         // TODO: Add /edit command logic
-        await _botClient.SendTextMessageAsync(
+        await _botClient.SendMessage(
             chatId,
             $"Команда /edit с аргументом '{argument}' пока не реализована.",
-            cancellationToken: cancellationToken
+            cancellationToken: _cancellationToken
         );
     }
 
-    private async Task HandleDeleteCommand(string argument, long chatId, CancellationToken cancellationToken)
+    private async Task HandleDeleteCommand(string argument, long chatId)
     {
         // TODO: Add /delete command logic
-        await _botClient.SendTextMessageAsync(
+        await _botClient.SendMessage(
             chatId,
             $"Команда /delete с аргументом '{argument}' пока не реализована.",
-            cancellationToken: cancellationToken
+            cancellationToken: _cancellationToken
         );
     }
 
-    private async Task HandleCheckCommand(string argument, long chatId, CancellationToken cancellationToken)
+    private async Task HandleCheckCommand(string argument, long chatId)
     {
         // TODO: Add /check command logic
-        await _botClient.SendTextMessageAsync(
+        await _botClient.SendMessage(
             chatId,
             $"Команда /check с аргументом '{argument}' пока не реализована.",
-            cancellationToken: cancellationToken
+            cancellationToken: _cancellationToken
         );
     }
 }
