@@ -1,9 +1,12 @@
-﻿namespace NuhhlerAdventBot;
+﻿using NuhhlerAdventBot.BotApi;
 
-class Program
+namespace NuhhlerAdventBot;
+
+internal class Program
 {
-    static void Main(string[] args)
+    private static async Task Main(string[] args)
     {
-        Console.WriteLine("Hello, World!");
+        var connect = new Connect();
+        await connect.StartBot();
     }
 }
