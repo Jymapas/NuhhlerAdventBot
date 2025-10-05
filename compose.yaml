@@ -1,6 +1,0 @@
-﻿services:
-  nuhhleradventbot:
-    image: nuhhleradventbot
-    build:
-      context: .
-      dockerfile: Dockerfile
