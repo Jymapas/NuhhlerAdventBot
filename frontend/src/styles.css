@@ -1,0 +1,52 @@
+:root {
+  --bg: var(--tg-theme-bg-color, #fff);
+  --text: var(--tg-theme-text-color, #111);
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+}
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+}
+textarea {
+  width: 100%;
+  min-height: 200px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #ccc;
+}
+.btn {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: none;
+}
+.toast {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #000a;
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 12px;
+}
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.card {
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  background: #fff;
+}
+a {
+  color: inherit;
+  text-decoration: underline;
+}

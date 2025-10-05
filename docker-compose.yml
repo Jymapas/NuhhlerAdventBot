@@ -1,0 +1,29 @@
+version: "3.9"
+services:
+  api:
+    build:
+      context: ./backend
+    env_file: .env
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - DATABASE_PATH=/data/app.db
+      - LOG_PATH=/logs/log-.ndjson
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+      - ./logs:/logs
+
+  web:
+    build:
+      context: ./frontend
+      target: preview
+    env_file: .env
+    environment:
+      - VITE_BACKEND_BASE_URL=http://localhost:8080
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api

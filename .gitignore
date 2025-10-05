@@ -1,9 +1,53 @@
+# Core ignores
+.DS_Store
+Thumbs.db
+*.log
+logs/
 
-.idea/
+# Environment files
+.env
+*.user
+*.suo
+*.swp
+*.tmp
+*.temp
 
+# Build outputs
+bin/
 obj/
 
-appsettings.json
+# Visual Studio tooling
+.vs/
+*.VisualState.xml
+*.VC.db
 
-bin/
-.vs
+# Rider / IntelliJ
+.idea/
+*.iml
+
+# Dotnet tooling
+*.nupkg
+*.snupkg
+*.snk
+TestResults/
+
+# Database artifacts
+*.db
+*.db-shm
+*.db-wal
+
+# Frontend build
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/*.tsbuildinfo
+
+# Vite/TypeScript incremental caches
+frontend/node_modules/.cache/
+frontend/.cache/
+
+# Misc project artifacts
+coverage/
+.temp/
+.tools/
+
