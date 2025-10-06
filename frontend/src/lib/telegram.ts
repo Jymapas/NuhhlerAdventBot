@@ -27,3 +27,7 @@ export function hideMainButton() {
 export function getInitData(): string {
   return tg?.initData || ""
 }
+
+export function hasTelegramUI(): boolean {
+  return Boolean(tg?.MainButton)
+}
