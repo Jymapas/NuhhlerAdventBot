@@ -2,6 +2,7 @@
 using Application.Abstractions;
 using Infrastructure;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shared.Env;
 using Shared.Logging;

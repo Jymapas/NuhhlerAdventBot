@@ -8,3 +8,5 @@ appsettings.json
 bin/
 .vs
 .env
+.nuget/
+dotnet-test.log
