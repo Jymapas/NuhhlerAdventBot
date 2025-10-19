@@ -9,7 +9,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Configuration.AddEnvironmentVariables();
 SerilogBootstrap.ConfigureSerilog(builder);
 
-builder.Services.AddInfrastructure();
+builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddHostedService<TickerService>();
 
