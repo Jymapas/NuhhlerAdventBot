@@ -40,4 +40,9 @@ public sealed class UserRepository(AppDbContext dbContext) : IUserRepository
         await dbContext.SaveChangesAsync(ct);
         return user;
     }
+
+    public async Task<User?> GetByUsernameAsync(string username, CancellationToken ct) =>
+        await dbContext.Users.AsNoTracking().FirstOrDefaultAsync(
+            x => x.Username != null && x.Username.ToLower() == username.ToLower(),
+            ct);
 }
