@@ -16,7 +16,7 @@ LoadEnvironmentFromEnvFile();
 builder.Configuration.AddEnvironmentVariables();
 SerilogBootstrap.ConfigureSerilog(builder);
 
-builder.Services.AddInfrastructure();
+builder.Services.AddInfrastructure(builder.Configuration);
 
 var botToken = builder.Configuration[EnvKeys.BotToken];
 if (!TryConfigureTelegramBotClient(builder.Services, botToken))
