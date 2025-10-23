@@ -47,8 +47,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(x => x.DefaultSendTime).HasConversion(timeOnlyConverter);
             entity.Property(x => x.Status).HasConversion<int>();
             entity.Property(x => x.RecipientStatus).HasConversion<int>();
+            entity.Property(x => x.BindToken)
+                .HasMaxLength(64)
+                .IsRequired(false);
             entity.HasIndex(x => new { x.OwnerUserId, x.StartDate, x.EndDate })
                 .HasDatabaseName("IX_Campaign_Owner_Period");
+            entity.HasIndex(x => x.BindToken).IsUnique(false);
             entity.HasMany(x => x.Days)
                 .WithOne()
                 .HasForeignKey(d => d.CampaignId)
