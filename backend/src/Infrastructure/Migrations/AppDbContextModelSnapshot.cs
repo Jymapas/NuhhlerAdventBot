@@ -73,6 +73,10 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
             b.Property<DateTime>("CreatedAtUtc")
                 .HasColumnType("TEXT");
 
+            b.Property<string>("BindToken")
+                .HasMaxLength(64)
+                .HasColumnType("TEXT");
+
             b.Property<TimeSpan>("DefaultSendTime")
                 .HasColumnType("TEXT")
                 .HasConversion(timeOnlyConverter);
@@ -106,6 +110,8 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                 .HasColumnType("TEXT");
 
             b.HasKey("Id");
+
+            b.HasIndex("BindToken");
 
             b.HasIndex("OwnerUserId");
 
