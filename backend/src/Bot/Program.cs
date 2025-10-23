@@ -1,50 +1,76 @@
 ﻿using System.IO;
-using System.Runtime.InteropServices;
-using System.Text.RegularExpressions;
 using Application.Abstractions;
+using Bot.Callbacks;
+using Bot.Commands;
+using Bot.Fsm;
+using Bot.Handlers;
+using Bot.Hosting;
+using Bot.Updates;
 using Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Shared.Env;
 using Shared.Logging;
-using Telegram.Bot;
+using Serilog;
 
-var builder = Host.CreateApplicationBuilder(args);
-
-LoadEnvironmentFromEnvFile();
-builder.Configuration.AddEnvironmentVariables();
-SerilogBootstrap.ConfigureSerilog(builder);
-
-builder.Services.AddInfrastructure(builder.Configuration);
-
-var botToken = builder.Configuration[EnvKeys.BotToken];
-if (!TryConfigureTelegramBotClient(builder.Services, botToken))
+try
 {
-    Console.WriteLine("WARNING: BOT_TOKEN is missing or invalid; Bot will run without Telegram connectivity.");
+    LoadEnvironmentFromEnvFile();
+
+    var builder = Host.CreateApplicationBuilder(args);
+
+    builder.Configuration.AddEnvironmentVariables();
+    SerilogBootstrap.ConfigureSerilog(builder);
+
+    builder.Services.AddInfrastructure(builder.Configuration);
+    builder.Services.AddSingleton<IFsmStorage, InMemoryFsmStorage>();
+    builder.Services.AddSingleton<IUpdateRouter, UpdateRouter>();
+    builder.Services.AddSingleton<CommandDispatcher>();
+    builder.Services.AddSingleton<ICommandDispatcher>(sp => sp.GetRequiredService<CommandDispatcher>());
+    builder.Services.AddSingleton<CallbackDispatcher>();
+    builder.Services.AddSingleton<ICallbackDispatcher>(sp => sp.GetRequiredService<CallbackDispatcher>());
+
+    builder.Services.AddSingleton<ICommandHandler, StartCommandHandler>();
+    builder.Services.AddSingleton<ICommandHandler, NewAdventCommandHandler>();
+    builder.Services.AddSingleton<ICommandHandler, SetRecipientCommandHandler>();
+    builder.Services.AddSingleton<ICommandHandler, TemplateCommandHandler>();
+    builder.Services.AddSingleton<ICommandHandler, ImportCommandHandler>();
+    builder.Services.AddSingleton<ICommandHandler, CheckCommandHandler>();
+    builder.Services.AddSingleton<ICommandHandler, EditCommandHandler>();
+    builder.Services.AddSingleton<ICommandHandler, StartCampaignCommandHandler>();
+    builder.Services.AddSingleton<ICommandHandler, PauseResumeCommandHandler>();
+    builder.Services.AddSingleton<ICommandHandler, TodayCommandHandler>();
+
+    builder.Services.AddSingleton<ICallbackHandler, CommandCallbackHandler>();
+
+    builder.Services.AddHostedService<BotHostedService>();
+
+    var app = builder.Build();
+    var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Bot.Program");
+
+    var botToken = app.Services.GetRequiredService<IConfiguration>()[EnvKeys.BotToken];
+    if (string.IsNullOrWhiteSpace(botToken))
+    {
+        logger.LogWarning("BOT_TOKEN is missing; Telegram long polling will not start.");
+    }
+
+    var info = app.Services.GetRequiredService<IBotInfo>();
+    logger.LogInformation("Advent Bot (Bot) starting; version: {Version}", info.Version);
+
+    await app.RunAsync();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Advent Bot (Bot) terminated unexpectedly");
+}
+finally
+{
+    Log.CloseAndFlush();
 }
 
-var app = builder.Build();
-
-var info = app.Services.GetRequiredService<IBotInfo>();
-Console.WriteLine($"Advent Bot (Bot) started; version: {info.Version}; OS: {RuntimeInformation.OSDescription}");
-
-await app.RunAsync();
-
-bool TryConfigureTelegramBotClient(IServiceCollection services, string? token)
-{
-    if (string.IsNullOrWhiteSpace(token))
-        return false;
-
-    // Telegram tokens have format "<bot_id>:<hash>"
-    if (!Regex.IsMatch(token, @"^\d+:[\w-]+$"))
-        return false;
-
-    services.AddSingleton(_ => new TelegramBotClient(token));
-    return true;
-}
-
-void LoadEnvironmentFromEnvFile()
+static void LoadEnvironmentFromEnvFile()
 {
     var current = AppContext.BaseDirectory;
     while (!string.IsNullOrEmpty(current))
