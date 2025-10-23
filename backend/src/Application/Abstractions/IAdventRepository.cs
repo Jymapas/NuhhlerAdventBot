@@ -12,4 +12,6 @@ public interface IAdventRepository
     Task UpsertDayAsync(AdventDay day, CancellationToken ct);
 
     Task<bool> CampaignHasAllDaysFilledAsync(long campaignId, CancellationToken ct);
+    Task<AdventCampaign?> GetDraftByOwnerAsync(long ownerUserId, CancellationToken ct);
+    Task<AdventCampaign?> GetByBindTokenAsync(string token, CancellationToken ct);
 }
