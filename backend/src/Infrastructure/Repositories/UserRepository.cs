@@ -41,8 +41,11 @@ public sealed class UserRepository(AppDbContext dbContext) : IUserRepository
         return user;
     }
 
-    public async Task<User?> GetByUsernameAsync(string username, CancellationToken ct) =>
-        await dbContext.Users.AsNoTracking().FirstOrDefaultAsync(
-            x => x.Username != null && x.Username.ToLower() == username.ToLower(),
+    public async Task<User?> GetByUsernameAsync(string username, CancellationToken ct)
+    {
+        var normalized = username.ToLowerInvariant();
+        return await dbContext.Users.AsNoTracking().FirstOrDefaultAsync(
+            x => x.Username != null && x.Username.ToLower() == normalized,
             ct);
+    }
 }
