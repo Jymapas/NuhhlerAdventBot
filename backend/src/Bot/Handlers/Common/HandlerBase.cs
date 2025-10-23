@@ -68,6 +68,23 @@ public abstract class HandlerBase
             replyMarkup: replyMarkup,
             cancellationToken: cancellationToken);
 
+    protected internal static string GetUsernameLink(User? user)
+    {
+        if (user is null)
+            return "неизвестный пользователь";
+
+        if (!string.IsNullOrWhiteSpace(user.Username))
+            return $"@{user.Username}";
+
+        if (!string.IsNullOrWhiteSpace(user.FirstName) && !string.IsNullOrWhiteSpace(user.LastName))
+            return $"{user.FirstName} {user.LastName}";
+
+        if (!string.IsNullOrWhiteSpace(user.FirstName))
+            return user.FirstName;
+
+        return user.Id.ToString();
+    }
+
     protected bool EnsureOwner(long userId, string? username)
     {
         var isOwner = OwnerGuard.IsOwner(userId, Configuration);
