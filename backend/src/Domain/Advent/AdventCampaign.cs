@@ -32,6 +32,7 @@ public sealed class AdventCampaign
     public RecipientStatus RecipientStatus { get; set; } = RecipientStatus.Pending;
 
     public string Name { get; set; } = "Advent";
+    public string? BindToken { get; set; }
 
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }
