@@ -11,5 +11,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="CsvHelper" />
+    <PackageReference Include="NPOI" />
   </ItemGroup>
 </Project>
