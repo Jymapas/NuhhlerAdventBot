@@ -45,8 +45,7 @@ public sealed class TemplateCommandHandler : HandlerBase, ICommandHandler
         EnsureOwner(telegramUser.Id, telegramUser.Username);
 
         var owner = await userRepository.EnsureAsync(telegramUser.Id, telegramUser.Username, telegramUser.FirstName, cancellationToken);
-        var campaign = await adventRepository.GetDraftByOwnerAsync(owner.Id, cancellationToken)
-                       ?? await adventRepository.GetActiveByOwnerAsync(owner.Id, cancellationToken);
+        var campaign = await adventRepository.GetActiveOrDraftByOwnerAsync(owner.Id, cancellationToken);
 
         if (campaign is null)
         {
