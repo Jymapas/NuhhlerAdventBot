@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using Application.Abstractions;
 using Bot.Callbacks;
 using Bot.Commands;
@@ -8,10 +9,12 @@ using Bot.Handlers.Callbacks;
 using Bot.Hosting;
 using Bot.Updates;
 using Infrastructure;
+using Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 using Shared.Env;
 using Shared.Logging;
 using Serilog;
@@ -54,6 +57,12 @@ try
 
     var app = builder.Build();
     var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Bot.Program");
+
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Database.Migrate();
+    }
 
     var botToken = app.Services.GetRequiredService<IConfiguration>()[EnvKeys.BotToken];
     if (string.IsNullOrWhiteSpace(botToken))

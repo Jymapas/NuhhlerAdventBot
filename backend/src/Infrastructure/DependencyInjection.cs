@@ -1,4 +1,6 @@
-﻿using Application;
+﻿using System;
+using System.IO;
+using Application;
 using Application.Abstractions;
 using Application.Import;
 using Infrastructure.Persistence;
@@ -18,6 +20,17 @@ public static class DependencyInjection
         {
             var configuration = cfg ?? sp.GetRequiredService<IConfiguration>();
             var dbPath = configuration["DB_PATH"] ?? "data/advent.db";
+            if (!Path.IsPathRooted(dbPath))
+            {
+                dbPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, dbPath));
+            }
+
+            var directory = Path.GetDirectoryName(dbPath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
             options.UseSqlite($"Data Source={dbPath}");
         });
 
