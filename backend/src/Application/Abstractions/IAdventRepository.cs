@@ -14,4 +14,5 @@ public interface IAdventRepository
     Task<bool> CampaignHasAllDaysFilledAsync(long campaignId, CancellationToken ct);
     Task<AdventCampaign?> GetDraftByOwnerAsync(long ownerUserId, CancellationToken ct);
     Task<AdventCampaign?> GetByBindTokenAsync(string token, CancellationToken ct);
+    Task<AdventCampaign?> GetActiveByOwnerAsync(long ownerUserId, CancellationToken ct);
 }

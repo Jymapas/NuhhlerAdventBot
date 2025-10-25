@@ -1,5 +1,6 @@
 ﻿using Application;
 using Application.Abstractions;
+using Application.Import;
 using Infrastructure.Persistence;
 using Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +24,9 @@ public static class DependencyInjection
         services.AddScoped<IAdventRepository, AdventRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IDeliveryLogRepository, DeliveryLogRepository>();
+        services.AddScoped<IImportParser, ImportParser>();
+        services.AddScoped<IImportService, ImportService>();
+        services.AddScoped<ITemplateGenerator, TemplateGenerator>();
 
         return services;
     }

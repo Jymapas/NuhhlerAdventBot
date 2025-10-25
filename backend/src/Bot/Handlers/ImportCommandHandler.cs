@@ -1,7 +1,12 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using Application.Abstractions;
 using Bot.Commands;
 using Bot.Fsm;
 using Bot.Handlers.Common;
 using Bot.Keyboards;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
@@ -11,12 +16,16 @@ namespace Bot.Handlers;
 
 public sealed class ImportCommandHandler : HandlerBase, ICommandHandler
 {
+    private readonly IServiceScopeFactory _scopeFactory;
+
     public ImportCommandHandler(
         IFsmStorage fsmStorage,
         IConfiguration configuration,
-        ILogger<ImportCommandHandler> logger)
+        ILogger<ImportCommandHandler> logger,
+        IServiceScopeFactory scopeFactory)
         : base(fsmStorage, configuration, logger)
     {
+        _scopeFactory = scopeFactory;
     }
 
     public bool CanHandle(string command) =>
@@ -24,20 +33,42 @@ public sealed class ImportCommandHandler : HandlerBase, ICommandHandler
 
     public async Task HandleAsync(ITelegramBotClient client, Update update, string command, string? args, CancellationToken cancellationToken)
     {
-        var userId = GetUserId(update);
-        if (userId is null)
+        if (update.Message?.From is null)
         {
-            Logger.LogWarning("Cannot start import FSM without user id.");
+            Logger.LogWarning("Import command without sender info");
             return;
         }
 
-        var username = GetUsername(update);
-        EnsureOwner(userId.Value, username);
+        using var scope = _scopeFactory.CreateScope();
+        var userRepository = scope.ServiceProvider.GetRequiredService<IUserRepository>();
+        var adventRepository = scope.ServiceProvider.GetRequiredService<IAdventRepository>();
+
+        EnsureOwner(update.Message.From.Id, update.Message.From.Username);
+
+        var owner = await userRepository.EnsureAsync(update.Message.From.Id, update.Message.From.Username, update.Message.From.FirstName, cancellationToken);
+
+        var campaign = await adventRepository.GetDraftByOwnerAsync(owner.Id, cancellationToken)
+                      ?? await adventRepository.GetActiveByOwnerAsync(owner.Id, cancellationToken);
+
+        if (campaign is null)
+        {
+            await ReplyAsync(
+                client,
+                GetChatId(update),
+                "Сначала создайте кампанию через /new_advent.",
+                cancellationToken);
+            return;
+        }
 
         var snapshot = new FsmSnapshot
         {
-            UserId = userId.Value,
-            State = FsmState.ImportAwaitFile
+            UserId = update.Message.From.Id,
+            State = FsmState.ImportAwaitFile,
+            Payload = new Dictionary<string, string>
+            {
+                ["campaignId"] = campaign.Id.ToString(CultureInfo.InvariantCulture),
+                ["ownerId"] = owner.Id.ToString(CultureInfo.InvariantCulture)
+            }
         };
 
         await FsmStorage.SetAsync(snapshot);
@@ -45,7 +76,7 @@ public sealed class ImportCommandHandler : HandlerBase, ICommandHandler
         await ReplyAsync(
             client,
             GetChatId(update),
-            "Пришлите файл CSV/XLS/XLSX. Для отмены используйте /cancel или кнопку «Отмена».",
+            "Пришлите файл (CSV / XLS / XLSX) с колонками date;text. /cancel для отмены.",
             MainKeyboards.CreateCancel(),
             cancellationToken);
     }
