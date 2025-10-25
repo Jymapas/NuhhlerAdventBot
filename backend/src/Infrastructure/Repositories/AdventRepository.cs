@@ -78,4 +78,16 @@ public sealed class AdventRepository(AppDbContext dbContext) : IAdventRepository
         var empty = await query.CountAsync(x => string.IsNullOrWhiteSpace(x.Text), ct);
         return empty == 0;
     }
+
+    public async Task<AdventCampaign?> GetDraftByOwnerAsync(long ownerUserId, CancellationToken ct) =>
+        await dbContext.AdventCampaigns
+            .Include(c => c.Days)
+            .FirstOrDefaultAsync(
+                c => c.OwnerUserId == ownerUserId && c.Status == CampaignStatus.Draft,
+                ct);
+
+    public async Task<AdventCampaign?> GetByBindTokenAsync(string token, CancellationToken ct) =>
+        await dbContext.AdventCampaigns
+            .Include(c => c.Days)
+            .FirstOrDefaultAsync(c => c.BindToken == token, ct);
 }
