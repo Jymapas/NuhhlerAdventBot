@@ -42,7 +42,8 @@ public sealed class ImportParser : IImportParser
         {
             ct.ThrowIfCancellationRequested();
 
-            if (csv.Context.Record is null || csv.Context.Record.Length == 0)
+            var record = csv.Parser.Record;
+            if (record is null || record.Length == 0)
             {
                 continue;
             }
@@ -124,7 +125,7 @@ public sealed class ImportParser : IImportParser
         return cell.CellType switch
         {
             CellType.Numeric when DateUtil.IsCellDateFormatted(cell) =>
-                DateOnly.FromDateTime(cell.DateCellValue).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                DateOnly.FromDateTime((cell.DateCellValue ?? DateTime.MinValue)).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             CellType.Numeric => cell.NumericCellValue.ToString(CultureInfo.InvariantCulture),
             CellType.Boolean => cell.BooleanCellValue ? "true" : "false",
             CellType.String => cell.StringCellValue.Trim(),

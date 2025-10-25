@@ -3,5 +3,7 @@
     <ProjectReference Include="..\Domain\Domain.csproj" />
     <ProjectReference Include="..\Shared\Shared.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="CsvHelper" />
+    <PackageReference Include="NPOI" />
   </ItemGroup>
 </Project>
