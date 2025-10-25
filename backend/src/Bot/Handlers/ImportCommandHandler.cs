@@ -47,8 +47,7 @@ public sealed class ImportCommandHandler : HandlerBase, ICommandHandler
 
         var owner = await userRepository.EnsureAsync(update.Message.From.Id, update.Message.From.Username, update.Message.From.FirstName, cancellationToken);
 
-        var campaign = await adventRepository.GetDraftByOwnerAsync(owner.Id, cancellationToken)
-                      ?? await adventRepository.GetActiveByOwnerAsync(owner.Id, cancellationToken);
+        var campaign = await adventRepository.GetActiveOrDraftByOwnerAsync(owner.Id, cancellationToken);
 
         if (campaign is null)
         {

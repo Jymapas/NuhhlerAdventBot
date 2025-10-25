@@ -1,16 +1,20 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using Application.Abstractions;
 using Bot.Callbacks;
 using Bot.Commands;
 using Bot.Fsm;
 using Bot.Handlers;
+using Bot.Handlers.Callbacks;
 using Bot.Hosting;
 using Bot.Updates;
 using Infrastructure;
+using Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 using Shared.Env;
 using Shared.Logging;
 using Serilog;
@@ -44,11 +48,21 @@ try
     builder.Services.AddSingleton<ICommandHandler, TodayCommandHandler>();
 
     builder.Services.AddSingleton<ICallbackHandler, CommandCallbackHandler>();
+    builder.Services.AddSingleton<ICallbackHandler, CheckRangesCallbackHandler>();
+    builder.Services.AddSingleton<ICallbackHandler, CheckDayCallbackHandler>();
+    builder.Services.AddSingleton<ICallbackHandler, EditTextCallbackHandler>();
+    builder.Services.AddSingleton<ICallbackHandler, EditTimeCallbackHandler>();
 
     builder.Services.AddHostedService<BotHostedService>();
 
     var app = builder.Build();
     var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Bot.Program");
+
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Database.Migrate();
+    }
 
     var botToken = app.Services.GetRequiredService<IConfiguration>()[EnvKeys.BotToken];
     if (string.IsNullOrWhiteSpace(botToken))
