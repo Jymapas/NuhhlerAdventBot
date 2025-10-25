@@ -43,6 +43,19 @@ public sealed class UpdateRouter : IUpdateRouter
         {
             case UpdateType.Message when update.Message is { Text: { } text }:
             {
+                if (update.Message.From is not null)
+                {
+                    var snapshot = await _fsmStorage.GetAsync(update.Message.From.Id);
+                    if (snapshot is not null && !text.TrimStart().StartsWith("/", StringComparison.Ordinal))
+                    {
+                        var handled = await HandleTextInputAsync(botClient, update.Message, text, snapshot, cancellationToken);
+                        if (handled)
+                        {
+                            return;
+                        }
+                    }
+                }
+
                 if (!text.TrimStart().StartsWith("/", StringComparison.Ordinal))
                 {
                     return;
@@ -176,5 +189,119 @@ public sealed class UpdateRouter : IUpdateRouter
         {
             await _fsmStorage.ClearAsync(message.From.Id);
         }
+    }
+
+    private async Task<bool> HandleTextInputAsync(ITelegramBotClient client, Message message, string text, FsmSnapshot snapshot, CancellationToken ct)
+    {
+        switch (snapshot.State)
+        {
+            case FsmState.EditAwaitText:
+                await HandleEditTextAsync(client, message, text, snapshot, ct);
+                return true;
+            case FsmState.SetTimeAwaitValue:
+                await HandleEditTimeAsync(client, message, text, snapshot, ct);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private async Task HandleEditTextAsync(ITelegramBotClient client, Message message, string text, FsmSnapshot snapshot, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            await client.SendMessage(new ChatId(message.Chat.Id), "Текст не может быть пустым. Попробуйте снова или используйте /cancel.", cancellationToken: ct);
+            return;
+        }
+
+        if (text.Length > 4096)
+        {
+            await client.SendMessage(new ChatId(message.Chat.Id), "Текст слишком длинный (максимум 4096 символов).", cancellationToken: ct);
+            return;
+        }
+
+        if (!snapshot.Payload.TryGetValue("campaignId", out var campaignIdRaw) ||
+            !long.TryParse(campaignIdRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var campaignId) ||
+            !snapshot.Payload.TryGetValue("date", out var dateIso) ||
+            !DateOnly.TryParse(dateIso, CultureInfo.InvariantCulture, out var date))
+        {
+            await client.SendMessage(new ChatId(message.Chat.Id), "Не удалось определить контекст редактирования. Начните заново через /check.", cancellationToken: ct);
+            await _fsmStorage.ClearAsync(message.From!.Id);
+            return;
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var userRepository = scope.ServiceProvider.GetRequiredService<IUserRepository>();
+        var adventRepository = scope.ServiceProvider.GetRequiredService<IAdventRepository>();
+
+        var owner = await userRepository.EnsureAsync(message.From!.Id, message.From.Username, message.From.FirstName, ct);
+        var campaign = await adventRepository.GetActiveOrDraftByOwnerAsync(owner.Id, ct);
+
+        if (campaign is null || campaign.Id != campaignId)
+        {
+            await client.SendMessage(new ChatId(message.Chat.Id), "Нет активной кампании. Создайте её через /new_advent.", cancellationToken: ct);
+            await _fsmStorage.ClearAsync(message.From.Id);
+            return;
+        }
+
+        var day = await adventRepository.GetDayAsync(campaign.Id, date, ct)
+                  ?? new Domain.Advent.AdventDay { CampaignId = campaign.Id, Date = date };
+
+        day.Text = text.Trim();
+        await adventRepository.UpsertDayAsync(day, ct);
+
+        await _fsmStorage.ClearAsync(message.From.Id);
+        await client.SendMessage(new ChatId(message.Chat.Id), "Сохранено ✅", cancellationToken: ct);
+    }
+
+    private async Task HandleEditTimeAsync(ITelegramBotClient client, Message message, string text, FsmSnapshot snapshot, CancellationToken ct)
+    {
+        if (!snapshot.Payload.TryGetValue("campaignId", out var campaignIdRaw) ||
+            !long.TryParse(campaignIdRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var campaignId) ||
+            !snapshot.Payload.TryGetValue("date", out var dateIso) ||
+            !DateOnly.TryParse(dateIso, CultureInfo.InvariantCulture, out var date))
+        {
+            await client.SendMessage(new ChatId(message.Chat.Id), "Не удалось определить контекст редактирования. Начните заново через /check.", cancellationToken: ct);
+            await _fsmStorage.ClearAsync(message.From!.Id);
+            return;
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var userRepository = scope.ServiceProvider.GetRequiredService<IUserRepository>();
+        var adventRepository = scope.ServiceProvider.GetRequiredService<IAdventRepository>();
+
+        var owner = await userRepository.EnsureAsync(message.From!.Id, message.From.Username, message.From.FirstName, ct);
+        var campaign = await adventRepository.GetActiveOrDraftByOwnerAsync(owner.Id, ct);
+
+        if (campaign is null || campaign.Id != campaignId)
+        {
+            await client.SendMessage(new ChatId(message.Chat.Id), "Нет активной кампании. Создайте её через /new_advent.", cancellationToken: ct);
+            await _fsmStorage.ClearAsync(message.From.Id);
+            return;
+        }
+
+        var trimmed = text.Trim();
+        TimeOnly? overrideTime = null;
+        if (!trimmed.Equals("default", StringComparison.OrdinalIgnoreCase) && trimmed != "-")
+        {
+            if (!TimeOnly.TryParseExact(trimmed, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+            {
+                await client.SendMessage(new ChatId(message.Chat.Id), "Некорректный формат времени. Используйте HH:mm или default.", cancellationToken: ct);
+                return;
+            }
+
+            overrideTime = parsed;
+        }
+
+        var day = await adventRepository.GetDayAsync(campaign.Id, date, ct)
+                  ?? new Domain.Advent.AdventDay { CampaignId = campaign.Id, Date = date };
+
+        day.OverrideSendTime = overrideTime;
+        day.Text = day.Text ?? string.Empty;
+
+        await adventRepository.UpsertDayAsync(day, ct);
+
+        await _fsmStorage.ClearAsync(message.From.Id);
+        await client.SendMessage(new ChatId(message.Chat.Id), "Время обновлено ✅", cancellationToken: ct);
     }
 }
