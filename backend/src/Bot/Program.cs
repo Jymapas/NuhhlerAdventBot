@@ -4,6 +4,7 @@ using Bot.Callbacks;
 using Bot.Commands;
 using Bot.Fsm;
 using Bot.Handlers;
+using Bot.Handlers.Callbacks;
 using Bot.Hosting;
 using Bot.Updates;
 using Infrastructure;
@@ -44,6 +45,10 @@ try
     builder.Services.AddSingleton<ICommandHandler, TodayCommandHandler>();
 
     builder.Services.AddSingleton<ICallbackHandler, CommandCallbackHandler>();
+    builder.Services.AddSingleton<ICallbackHandler, CheckRangesCallbackHandler>();
+    builder.Services.AddSingleton<ICallbackHandler, CheckDayCallbackHandler>();
+    builder.Services.AddSingleton<ICallbackHandler, EditTextCallbackHandler>();
+    builder.Services.AddSingleton<ICallbackHandler, EditTimeCallbackHandler>();
 
     builder.Services.AddHostedService<BotHostedService>();
 
