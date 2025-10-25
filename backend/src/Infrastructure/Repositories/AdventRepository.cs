@@ -90,4 +90,11 @@ public sealed class AdventRepository(AppDbContext dbContext) : IAdventRepository
         await dbContext.AdventCampaigns
             .Include(c => c.Days)
             .FirstOrDefaultAsync(c => c.BindToken == token, ct);
+
+    public async Task<AdventCampaign?> GetActiveByOwnerAsync(long ownerUserId, CancellationToken ct) =>
+        await dbContext.AdventCampaigns
+            .Include(c => c.Days)
+            .Where(c => c.OwnerUserId == ownerUserId && c.Status == CampaignStatus.Active)
+            .OrderByDescending(c => c.UpdatedAtUtc)
+            .FirstOrDefaultAsync(ct);
 }
