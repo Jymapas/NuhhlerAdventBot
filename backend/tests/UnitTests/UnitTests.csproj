@@ -14,5 +14,6 @@
     <ProjectReference Include="..\..\src\Shared\Shared.csproj" />
     <ProjectReference Include="..\..\src\Infrastructure\Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Bot\Bot.csproj" />
+    <ProjectReference Include="..\..\src\Worker\Worker.csproj" />
   </ItemGroup>
 </Project>
