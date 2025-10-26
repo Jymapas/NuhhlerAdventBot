@@ -61,12 +61,77 @@ public sealed class DeliveryService
         await ProcessRetryDeliveriesAsync(nowUtc, ct);
     }
 
+    public async Task<string> SendSingleDayNowAsync(long campaignId, DateOnly date, CancellationToken ct)
+    {
+        var campaign = await _adventRepository.GetCampaignAsync(campaignId, ct);
+        if (campaign is null)
+        {
+            return "Кампания не найдена.";
+        }
+
+        if (!campaign.RecipientUserId.HasValue || campaign.RecipientStatus != RecipientStatus.Ready)
+        {
+            return "Получатель ещё не назначен.";
+        }
+
+        var day = campaign.Days.FirstOrDefault(d => d.Date == date);
+        if (day is null)
+        {
+            return "День не найден.";
+        }
+
+        var recipientId = campaign.RecipientUserId.Value;
+        var log = await _deliveryLogRepository.GetLogAsync(campaign.Id, recipientId, date, ct);
+        if (log is not null && log.Status == DeliveryStatus.Sent)
+        {
+            return $"Сообщение за {date:yyyy-MM-dd} уже было отправлено.";
+        }
+
+        if (log is null)
+        {
+            log = new DeliveryLog
+            {
+                CampaignId = campaign.Id,
+                RecipientUserId = recipientId,
+                Date = date,
+                Attempts = 0,
+                CreatedAtUtc = DateTime.UtcNow,
+                LastAttemptAtUtc = DateTime.UtcNow
+            };
+        }
+        else
+        {
+            if (log.CreatedAtUtc == default)
+            {
+                log.CreatedAtUtc = DateTime.UtcNow;
+            }
+        }
+
+        if (log.Attempts >= MaxAttempts)
+        {
+            return $"Превышено число попыток отправки сообщения за {date:yyyy-MM-dd}.";
+        }
+
+        var status = await AttemptDeliveryAsync(campaign, day, log, ct);
+
+        return status switch
+        {
+            DeliveryStatus.Sent => $"Сообщение за {date:yyyy-MM-dd} отправлено вручную.",
+            DeliveryStatus.Retry => $"Не удалось отправить сообщение за {date:yyyy-MM-dd}. Попробуем ещё раз позже.",
+            DeliveryStatus.Failed => $"Не удалось отправить сообщение за {date:yyyy-MM-dd}. Ошибка: {log.Error}",
+            _ => $"Не удалось отправить сообщение за {date:yyyy-MM-dd}."
+        };
+    }
+
     private async Task ProcessInitialDeliveriesAsync(DateOnly todayLocal, TimeOnly currentMinute, CancellationToken ct)
     {
         var campaigns = await _adventRepository.GetActiveCampaignsAsync(ct);
 
         foreach (var campaign in campaigns)
         {
+            if (campaign.Status != CampaignStatus.Active)
+                continue;
+
             if (!campaign.RecipientUserId.HasValue || campaign.RecipientStatus != RecipientStatus.Ready)
                 continue;
 
@@ -106,7 +171,7 @@ public sealed class DeliveryService
                 LastAttemptAtUtc = DateTime.UtcNow
             };
 
-            await AttemptDeliveryAsync(campaign, day, log, ct);
+            _ = await AttemptDeliveryAsync(campaign, day, log, ct);
         }
     }
 
@@ -131,6 +196,12 @@ public sealed class DeliveryService
                 continue;
             }
 
+            if (campaign.Status != CampaignStatus.Active)
+            {
+                _logger.LogInformation("Skipping retry for campaign {CampaignId} because status is {Status}", campaign.Id, campaign.Status);
+                continue;
+            }
+
             var day = campaign.Days.FirstOrDefault(d => d.Date == log.Date);
             if (day is null)
             {
@@ -139,11 +210,11 @@ public sealed class DeliveryService
             }
 
             _logger.LogInformation("Retry delivery for campaign {CampaignId} date {Date} attempt #{Attempt}", log.CampaignId, log.Date, log.Attempts + 1);
-            await AttemptDeliveryAsync(campaign, day, log, ct);
+            _ = await AttemptDeliveryAsync(campaign, day, log, ct);
         }
     }
 
-    private async Task AttemptDeliveryAsync(AdventCampaign campaign, AdventDay day, DeliveryLog log, CancellationToken ct)
+    private async Task<DeliveryStatus> AttemptDeliveryAsync(AdventCampaign campaign, AdventDay day, DeliveryLog log, CancellationToken ct)
     {
         log.Attempts += 1;
         log.LastAttemptAtUtc = DateTime.UtcNow;
@@ -152,7 +223,7 @@ public sealed class DeliveryService
         if (recipient is null || recipient.TelegramId == 0)
         {
             await HandleFinalFailureAsync(campaign, log, "Получатель не найден", ct);
-            return;
+            return DeliveryStatus.Failed;
         }
 
         try
@@ -168,6 +239,7 @@ public sealed class DeliveryService
             log.Error = null;
 
             await _deliveryLogRepository.SaveAsync(log, ct);
+            return DeliveryStatus.Sent;
         }
         catch (ApiRequestException apiEx)
         {
@@ -176,10 +248,12 @@ public sealed class DeliveryService
             if (final)
             {
                 await HandleFinalFailureAsync(campaign, log, reason, ct);
+                return DeliveryStatus.Failed;
             }
             else
             {
                 await HandleRetryAsync(log, reason, ct);
+                return DeliveryStatus.Retry;
             }
         }
         catch (Exception ex)
@@ -189,10 +263,12 @@ public sealed class DeliveryService
             if (final)
             {
                 await HandleFinalFailureAsync(campaign, log, ex.Message, ct);
+                return DeliveryStatus.Failed;
             }
             else
             {
                 await HandleRetryAsync(log, ex.Message, ct);
+                return DeliveryStatus.Retry;
             }
         }
     }
