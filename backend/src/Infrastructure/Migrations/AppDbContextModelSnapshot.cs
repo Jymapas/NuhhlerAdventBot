@@ -177,6 +177,12 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
             b.Property<long>("RecipientUserId")
                 .HasColumnType("INTEGER");
 
+            b.Property<DateTime>("CreatedAtUtc")
+                .HasColumnType("TEXT");
+
+            b.Property<DateTime>("LastAttemptAtUtc")
+                .HasColumnType("TEXT");
+
             b.Property<DateTime?>("SentAtUtc")
                 .HasColumnType("TEXT");
 
