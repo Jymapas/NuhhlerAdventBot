@@ -9,4 +9,5 @@ bin/
 .vs
 .env
 .nuget/
-dotnet-test.log
+*.log
+logs/
