@@ -53,6 +53,8 @@ try
     builder.Services.AddSingleton<ICallbackHandler, CheckDayCallbackHandler>();
     builder.Services.AddSingleton<ICallbackHandler, EditTextCallbackHandler>();
     builder.Services.AddSingleton<ICallbackHandler, EditTimeCallbackHandler>();
+    builder.Services.AddSingleton<ICallbackHandler, DailyBriefSendNowCallbackHandler>();
+    builder.Services.AddSingleton<ICallbackHandler, DailyBriefPauseCallbackHandler>();
 
     builder.Services.AddHostedService<BotHostedService>();
 
