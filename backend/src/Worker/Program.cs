@@ -1,5 +1,4 @@
 ﻿using Application.Abstractions;
-using Application.Services;
 using Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,6 +7,7 @@ using Shared.Env;
 using Shared.Logging;
 using Telegram.Bot;
 using Worker.Sending;
+using Worker.DailyBrief;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Configuration.AddEnvironmentVariables();
@@ -21,6 +21,7 @@ if (string.IsNullOrWhiteSpace(token))
 
 builder.Services.AddSingleton<ITelegramBotClient>(_ => new TelegramBotClient(token));
 builder.Services.AddHostedService<AdventScheduler>();
+builder.Services.AddHostedService<DailyBriefService>();
 
 var app = builder.Build();
 
