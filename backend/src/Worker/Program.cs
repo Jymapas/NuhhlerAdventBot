@@ -6,8 +6,10 @@ using Microsoft.Extensions.Hosting;
 using Shared.Env;
 using Shared.Logging;
 using Telegram.Bot;
-using Worker.Sending;
 using Worker.DailyBrief;
+using Worker.Sending;
+
+EnvFileLoader.LoadFromAncestors();
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Configuration.AddEnvironmentVariables();

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.IO;
 using Application.Abstractions;
 using Bot.Callbacks;
 using Bot.Commands;
@@ -21,7 +20,7 @@ using Serilog;
 
 try
 {
-    LoadEnvironmentFromEnvFile();
+    EnvFileLoader.LoadFromAncestors();
 
     var builder = Host.CreateApplicationBuilder(args);
 
@@ -85,40 +84,4 @@ catch (Exception ex)
 finally
 {
     Log.CloseAndFlush();
-}
-
-static void LoadEnvironmentFromEnvFile()
-{
-    var current = AppContext.BaseDirectory;
-    while (!string.IsNullOrEmpty(current))
-    {
-        var envPath = Path.Combine(current, ".env");
-        if (File.Exists(envPath))
-        {
-            foreach (var line in File.ReadAllLines(envPath))
-            {
-                var trimmed = line.Trim();
-                if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#", StringComparison.Ordinal))
-                    continue;
-
-                var separatorIndex = trimmed.IndexOf('=');
-                if (separatorIndex <= 0)
-                    continue;
-
-                var key = trimmed[..separatorIndex].Trim();
-                if (string.IsNullOrEmpty(key))
-                    continue;
-
-                var rawValue = trimmed[(separatorIndex + 1)..].Trim();
-                var value = rawValue.Trim('\'', '"');
-
-                if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
-                    Environment.SetEnvironmentVariable(key, value);
-            }
-
-            break;
-        }
-
-        current = Directory.GetParent(current)?.FullName;
-    }
 }
