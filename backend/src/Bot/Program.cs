@@ -46,6 +46,7 @@ try
     builder.Services.AddSingleton<ICommandHandler, StartCampaignCommandHandler>();
     builder.Services.AddSingleton<ICommandHandler, PauseResumeCommandHandler>();
     builder.Services.AddSingleton<ICommandHandler, TodayCommandHandler>();
+    builder.Services.AddSingleton<ICommandHandler, SetTimeCommandHandler>();
 
     builder.Services.AddSingleton<ICallbackHandler, CommandCallbackHandler>();
     builder.Services.AddSingleton<ICallbackHandler, CheckRangesCallbackHandler>();
