@@ -105,4 +105,10 @@ public sealed class AdventRepository(AppDbContext dbContext) : IAdventRepository
             .OrderBy(c => c.Status) // Draft (0) before Active (1)
             .ThenByDescending(c => c.UpdatedAtUtc)
             .FirstOrDefaultAsync(ct);
+
+    public async Task<IReadOnlyList<AdventCampaign>> GetActiveCampaignsAsync(CancellationToken ct) =>
+        await dbContext.AdventCampaigns
+            .Include(c => c.Days)
+            .Where(c => c.Status == CampaignStatus.Active && c.RecipientStatus == RecipientStatus.Ready && c.RecipientUserId != null)
+            .ToListAsync(ct);
 }
