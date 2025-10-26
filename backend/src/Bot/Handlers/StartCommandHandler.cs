@@ -59,7 +59,11 @@ public sealed class StartCommandHandler : HandlerBase, ICommandHandler
 
         var text =
             "Привет! Этот Advent-бот помогает готовить кампанию рассылок.\n" +
-            "Команды пока в режиме заглушек и будут расширяться на следующих этапах.";
+            "\n" +
+            "Основные команды:\n" +
+            "/set_time HH:mm — задать время по умолчанию для кампании\n" +
+            "/set_time YYYY-MM-DD HH:mm — задать время только для одного дня\n" +
+            "/set_time YYYY-MM-DD default — вернуть день к времени кампании.";
 
         await ReplyAsync(
             client,
