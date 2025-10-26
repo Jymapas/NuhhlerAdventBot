@@ -22,4 +22,6 @@ public sealed class DeliveryLog
     public string? Error { get; set; }
     public int? TelegramMessageId { get; set; }
     public DateTime? SentAtUtc { get; set; }
+    public DateTime LastAttemptAtUtc { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
 }
