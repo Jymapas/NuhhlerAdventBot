@@ -1,4 +1,5 @@
 ﻿using Application.Abstractions;
+using Infrastructure.Persistence;
 using Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,6 +9,7 @@ using Shared.Logging;
 using Telegram.Bot;
 using Worker.DailyBrief;
 using Worker.Sending;
+using Microsoft.EntityFrameworkCore;
 
 EnvFileLoader.LoadFromAncestors();
 
@@ -26,6 +28,12 @@ builder.Services.AddHostedService<AdventScheduler>();
 builder.Services.AddHostedService<DailyBriefService>();
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
 
 var info = app.Services.GetRequiredService<IBotInfo>();
 Console.WriteLine($"Advent Bot (Worker) started; version: {info.Version}");
