@@ -92,6 +92,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.HasIndex(x => new { x.CampaignId, x.Date, x.RecipientUserId })
                 .IsUnique()
                 .HasFilter("Status = 0");
+            entity.Property(x => x.CreatedAtUtc);
+            entity.Property(x => x.LastAttemptAtUtc);
             entity.HasOne<AdventCampaign>()
                 .WithMany()
                 .HasForeignKey(x => x.CampaignId)
