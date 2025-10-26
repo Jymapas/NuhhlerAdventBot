@@ -42,6 +42,7 @@ public static class DependencyInjection
         services.AddScoped<IImportService, ImportService>();
         services.AddScoped<ITemplateGenerator, TemplateGenerator>();
         services.AddScoped<TimeSetupService>();
+        services.AddScoped<DeliveryService>();
 
         return services;
     }
