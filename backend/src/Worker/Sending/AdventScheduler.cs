@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Application.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -9,12 +10,12 @@ namespace Worker.Sending;
 
 public sealed class AdventScheduler : BackgroundService
 {
-    private readonly DeliveryService _deliveryService;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<AdventScheduler> _logger;
 
-    public AdventScheduler(DeliveryService deliveryService, ILogger<AdventScheduler> logger)
+    public AdventScheduler(IServiceScopeFactory scopeFactory, ILogger<AdventScheduler> logger)
     {
-        _deliveryService = deliveryService;
+        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
@@ -26,7 +27,9 @@ public sealed class AdventScheduler : BackgroundService
 
             try
             {
-                await _deliveryService.RunScheduledDeliveryTickAsync(stoppingToken);
+                using var scope = _scopeFactory.CreateScope();
+                var deliveryService = scope.ServiceProvider.GetRequiredService<DeliveryService>();
+                await deliveryService.RunScheduledDeliveryTickAsync(stoppingToken);
             }
             catch (OperationCanceledException)
             {
