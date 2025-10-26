@@ -3,6 +3,7 @@ using System.IO;
 using Application;
 using Application.Abstractions;
 using Application.Import;
+using Application.Services;
 using Infrastructure.Persistence;
 using Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -40,6 +41,8 @@ public static class DependencyInjection
         services.AddScoped<IImportParser, ImportParser>();
         services.AddScoped<IImportService, ImportService>();
         services.AddScoped<ITemplateGenerator, TemplateGenerator>();
+        services.AddScoped<TimeSetupService>();
+        services.AddScoped<DeliveryService>();
 
         return services;
     }

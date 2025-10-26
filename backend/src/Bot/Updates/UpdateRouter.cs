@@ -2,11 +2,12 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using Application.Abstractions;
+using Application.Import;
+using Application.Services;
 using Bot.Callbacks;
 using Bot.Commands;
 using Bot.Fsm;
-using Application.Abstractions;
-using Application.Import;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
@@ -256,9 +257,7 @@ public sealed class UpdateRouter : IUpdateRouter
 
     private async Task HandleEditTimeAsync(ITelegramBotClient client, Message message, string text, FsmSnapshot snapshot, CancellationToken ct)
     {
-        if (!snapshot.Payload.TryGetValue("campaignId", out var campaignIdRaw) ||
-            !long.TryParse(campaignIdRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var campaignId) ||
-            !snapshot.Payload.TryGetValue("date", out var dateIso) ||
+        if (!snapshot.Payload.TryGetValue("date", out var dateIso) ||
             !DateOnly.TryParse(dateIso, CultureInfo.InvariantCulture, out var date))
         {
             await client.SendMessage(new ChatId(message.Chat.Id), "Не удалось определить контекст редактирования. Начните заново через /check.", cancellationToken: ct);
@@ -268,17 +267,9 @@ public sealed class UpdateRouter : IUpdateRouter
 
         using var scope = _scopeFactory.CreateScope();
         var userRepository = scope.ServiceProvider.GetRequiredService<IUserRepository>();
-        var adventRepository = scope.ServiceProvider.GetRequiredService<IAdventRepository>();
+        var timeSetupService = scope.ServiceProvider.GetRequiredService<TimeSetupService>();
 
         var owner = await userRepository.EnsureAsync(message.From!.Id, message.From.Username, message.From.FirstName, ct);
-        var campaign = await adventRepository.GetActiveOrDraftByOwnerAsync(owner.Id, ct);
-
-        if (campaign is null || campaign.Id != campaignId)
-        {
-            await client.SendMessage(new ChatId(message.Chat.Id), "Нет активной кампании. Создайте её через /new_advent.", cancellationToken: ct);
-            await _fsmStorage.ClearAsync(message.From.Id);
-            return;
-        }
 
         var trimmed = text.Trim();
         TimeOnly? overrideTime = null;
@@ -293,15 +284,28 @@ public sealed class UpdateRouter : IUpdateRouter
             overrideTime = parsed;
         }
 
-        var day = await adventRepository.GetDayAsync(campaign.Id, date, ct)
-                  ?? new Domain.Advent.AdventDay { CampaignId = campaign.Id, Date = date };
+        if (overrideTime is null)
+        {
+            var (ok, error) = await timeSetupService.ResetDayTimeAsync(owner.Id, date, ct);
+            if (!ok)
+            {
+                await client.SendMessage(new ChatId(message.Chat.Id), error ?? "Не удалось обновить время дня.", cancellationToken: ct);
+                return;
+            }
 
-        day.OverrideSendTime = overrideTime;
-        day.Text = day.Text ?? string.Empty;
+            await _fsmStorage.ClearAsync(message.From.Id);
+            await client.SendMessage(new ChatId(message.Chat.Id), $"Для {date:yyyy-MM-dd} теперь используется время кампании.", cancellationToken: ct);
+            return;
+        }
 
-        await adventRepository.UpsertDayAsync(day, ct);
+        var (success, serviceError) = await timeSetupService.SetDayTimeAsync(owner.Id, date, overrideTime.Value, ct);
+        if (!success)
+        {
+            await client.SendMessage(new ChatId(message.Chat.Id), serviceError ?? "Не удалось обновить время дня.", cancellationToken: ct);
+            return;
+        }
 
         await _fsmStorage.ClearAsync(message.From.Id);
-        await client.SendMessage(new ChatId(message.Chat.Id), "Время обновлено ✅", cancellationToken: ct);
+        await client.SendMessage(new ChatId(message.Chat.Id), $"Для {date:yyyy-MM-dd} установлено время {overrideTime.Value:HH\\:mm}", cancellationToken: ct);
     }
 }

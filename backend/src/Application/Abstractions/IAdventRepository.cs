@@ -16,4 +16,5 @@ public interface IAdventRepository
     Task<AdventCampaign?> GetByBindTokenAsync(string token, CancellationToken ct);
     Task<AdventCampaign?> GetActiveByOwnerAsync(long ownerUserId, CancellationToken ct);
     Task<AdventCampaign?> GetActiveOrDraftByOwnerAsync(long ownerUserId, CancellationToken ct);
+    Task<IReadOnlyList<AdventCampaign>> GetActiveCampaignsAsync(CancellationToken ct);
 }
