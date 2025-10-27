@@ -8,6 +8,8 @@ using Application.Services;
 using Bot.Callbacks;
 using Bot.Commands;
 using Bot.Fsm;
+using Bot.Security;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
@@ -23,19 +25,22 @@ public sealed class UpdateRouter : IUpdateRouter
     private readonly ICallbackDispatcher _callbackDispatcher;
     private readonly IFsmStorage _fsmStorage;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IConfiguration _configuration;
 
     public UpdateRouter(
         ILogger<UpdateRouter> logger,
         ICommandDispatcher commandDispatcher,
         ICallbackDispatcher callbackDispatcher,
         IFsmStorage fsmStorage,
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        IConfiguration configuration)
     {
         _logger = logger;
         _commandDispatcher = commandDispatcher;
         _callbackDispatcher = callbackDispatcher;
         _fsmStorage = fsmStorage;
         _scopeFactory = scopeFactory;
+        _configuration = configuration;
     }
 
     public async Task HandleAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
@@ -99,6 +104,13 @@ public sealed class UpdateRouter : IUpdateRouter
     {
         if (message.Document is null || message.From is null)
         {
+            return;
+        }
+
+        if (!AuthExtensions.IsAllowedOwner(message.From.Id, _configuration))
+        {
+            await client.SendMessage(new ChatId(message.Chat.Id), "У вас нет прав использовать эту команду.", cancellationToken: ct);
+            await _fsmStorage.ClearAsync(message.From.Id);
             return;
         }
 
@@ -215,6 +227,13 @@ public sealed class UpdateRouter : IUpdateRouter
             return;
         }
 
+        if (message.From is not null && !AuthExtensions.IsAllowedOwner(message.From.Id, _configuration))
+        {
+            await client.SendMessage(new ChatId(message.Chat.Id), "У вас нет прав использовать эту команду.", cancellationToken: ct);
+            await _fsmStorage.ClearAsync(message.From!.Id);
+            return;
+        }
+
         if (text.Length > 4096)
         {
             await client.SendMessage(new ChatId(message.Chat.Id), "Текст слишком длинный (максимум 4096 символов).", cancellationToken: ct);
@@ -261,6 +280,13 @@ public sealed class UpdateRouter : IUpdateRouter
             !DateOnly.TryParse(dateIso, CultureInfo.InvariantCulture, out var date))
         {
             await client.SendMessage(new ChatId(message.Chat.Id), "Не удалось определить контекст редактирования. Начните заново через /check.", cancellationToken: ct);
+            await _fsmStorage.ClearAsync(message.From!.Id);
+            return;
+        }
+
+        if (message.From is not null && !AuthExtensions.IsAllowedOwner(message.From.Id, _configuration))
+        {
+            await client.SendMessage(new ChatId(message.Chat.Id), "У вас нет прав использовать эту команду.", cancellationToken: ct);
             await _fsmStorage.ClearAsync(message.From!.Id);
             return;
         }
