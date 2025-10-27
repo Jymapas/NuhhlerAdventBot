@@ -54,7 +54,15 @@ public sealed class SetRecipientCommandHandler : HandlerBase, ICommandHandler
         }
 
         var telegramUser = update.Message.From;
-        EnsureOwner(telegramUser.Id, telegramUser.Username);
+        if (!IsOwner(telegramUser.Id, telegramUser.Username))
+        {
+            await ReplyAsync(
+                client,
+                GetChatId(update),
+                "У вас нет прав использовать эту команду.",
+                cancellationToken);
+            return;
+        }
 
         using var scope = _scopeFactory.CreateScope();
         var userRepository = scope.ServiceProvider.GetRequiredService<IUserRepository>();

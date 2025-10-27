@@ -36,11 +36,19 @@ public sealed class CheckCommandHandler : HandlerBase, ICommandHandler
             return;
         }
 
+        if (!IsOwner(update.Message.From.Id, update.Message.From.Username))
+        {
+            await ReplyAsync(
+                client,
+                GetChatId(update),
+                "У вас нет прав использовать эту команду.",
+                cancellationToken);
+            return;
+        }
+
         using var scope = _scopeFactory.CreateScope();
         var userRepository = scope.ServiceProvider.GetRequiredService<IUserRepository>();
         var adventRepository = scope.ServiceProvider.GetRequiredService<IAdventRepository>();
-
-        EnsureOwner(update.Message.From.Id, update.Message.From.Username);
 
         var owner = await userRepository.EnsureAsync(update.Message.From.Id, update.Message.From.Username, update.Message.From.FirstName, cancellationToken);
         var campaign = await adventRepository.GetActiveOrDraftByOwnerAsync(owner.Id, cancellationToken);

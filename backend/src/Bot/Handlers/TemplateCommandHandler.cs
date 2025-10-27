@@ -37,12 +37,20 @@ public sealed class TemplateCommandHandler : HandlerBase, ICommandHandler
 
         var telegramUser = update.Message.From;
 
+        if (!IsOwner(telegramUser.Id, telegramUser.Username))
+        {
+            await ReplyAsync(
+                client,
+                GetChatId(update),
+                "У вас нет прав использовать эту команду.",
+                cancellationToken);
+            return;
+        }
+
         using var scope = _scopeFactory.CreateScope();
         var userRepository = scope.ServiceProvider.GetRequiredService<IUserRepository>();
         var adventRepository = scope.ServiceProvider.GetRequiredService<IAdventRepository>();
         var templateGenerator = scope.ServiceProvider.GetRequiredService<ITemplateGenerator>();
-
-        EnsureOwner(telegramUser.Id, telegramUser.Username);
 
         var owner = await userRepository.EnsureAsync(telegramUser.Id, telegramUser.Username, telegramUser.FirstName, cancellationToken);
         var campaign = await adventRepository.GetActiveOrDraftByOwnerAsync(owner.Id, cancellationToken);

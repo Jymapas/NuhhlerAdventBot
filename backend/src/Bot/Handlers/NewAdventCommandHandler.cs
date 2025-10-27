@@ -35,7 +35,15 @@ public sealed class NewAdventCommandHandler : HandlerBase, ICommandHandler
             return;
 
         var telegramUser = update.Message.From;
-        EnsureOwner(telegramUser.Id, telegramUser.Username);
+        if (!IsOwner(telegramUser.Id, telegramUser.Username))
+        {
+            await ReplyAsync(
+                client,
+                GetChatId(update),
+                "У вас нет прав использовать эту команду.",
+                cancellationToken);
+            return;
+        }
 
         var targetYear = ResolveTargetYear(args);
         using var scope = _scopeFactory.CreateScope();

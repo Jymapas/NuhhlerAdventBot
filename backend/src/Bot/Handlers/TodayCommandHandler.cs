@@ -25,9 +25,20 @@ public sealed class TodayCommandHandler : HandlerBase, ICommandHandler
     {
         var userId = GetUserId(update);
         var username = GetUsername(update);
-        if (userId is not null)
+        if (userId is null)
         {
-            EnsureOwner(userId.Value, username);
+            Logger.LogWarning("Today command without user id.");
+            return;
+        }
+
+        if (!IsOwner(userId.Value, username))
+        {
+            await ReplyAsync(
+                client,
+                GetChatId(update),
+                "У вас нет прав использовать эту команду.",
+                cancellationToken);
+            return;
         }
 
         await ReplyAsync(
