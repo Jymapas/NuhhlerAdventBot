@@ -33,7 +33,15 @@ public sealed class EditCommandHandler : HandlerBase, ICommandHandler
         }
 
         var username = GetUsername(update);
-        EnsureOwner(userId.Value, username);
+        if (!IsOwner(userId.Value, username))
+        {
+            await ReplyAsync(
+                client,
+                GetChatId(update),
+                "У вас нет прав использовать эту команду.",
+                cancellationToken);
+            return;
+        }
 
         FsmSnapshot snapshot;
         string message;

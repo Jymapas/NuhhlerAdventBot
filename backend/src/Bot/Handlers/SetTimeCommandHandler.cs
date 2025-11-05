@@ -39,7 +39,15 @@ public sealed class SetTimeCommandHandler : HandlerBase, ICommandHandler
         if (update.Message?.From is null)
             return;
 
-        EnsureOwner(update.Message.From.Id, update.Message.From.Username);
+        if (!IsOwner(update.Message.From.Id, update.Message.From.Username))
+        {
+            await ReplyAsync(
+                client,
+                GetChatId(update),
+                "У вас нет прав использовать эту команду.",
+                cancellationToken);
+            return;
+        }
 
         using var scope = _scopeFactory.CreateScope();
         var userRepository = scope.ServiceProvider.GetRequiredService<IUserRepository>();

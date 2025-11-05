@@ -26,9 +26,20 @@ public sealed class PauseResumeCommandHandler : HandlerBase, ICommandHandler
     {
         var userId = GetUserId(update);
         var username = GetUsername(update);
-        if (userId is not null)
+        if (userId is null)
         {
-            EnsureOwner(userId.Value, username);
+            Logger.LogWarning("Pause/resume command without user id.");
+            return;
+        }
+
+        if (!IsOwner(userId.Value, username))
+        {
+            await ReplyAsync(
+                client,
+                GetChatId(update),
+                "У вас нет прав использовать эту команду.",
+                cancellationToken);
+            return;
         }
 
         var text = string.Equals(command, "/pause", StringComparison.OrdinalIgnoreCase)

@@ -3,6 +3,8 @@ using System.Globalization;
 using Application.Abstractions;
 using Domain.Advent;
 using Bot.Callbacks;
+using Bot.Security;
+using Microsoft.Extensions.Configuration;
 using Bot.Keyboards;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -14,11 +16,16 @@ namespace Bot.Handlers.Callbacks;
 public sealed class CheckDayCallbackHandler : ICallbackHandler
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<CheckDayCallbackHandler> _logger;
 
-    public CheckDayCallbackHandler(IServiceScopeFactory scopeFactory, ILogger<CheckDayCallbackHandler> logger)
+    public CheckDayCallbackHandler(
+        IServiceScopeFactory scopeFactory,
+        IConfiguration configuration,
+        ILogger<CheckDayCallbackHandler> logger)
     {
         _scopeFactory = scopeFactory;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -28,6 +35,16 @@ public sealed class CheckDayCallbackHandler : ICallbackHandler
     {
         if (callbackQuery.Message is null || callbackQuery.From is null)
             return;
+
+        if (!AuthExtensions.IsAllowedOwner(callbackQuery.From.Id, _configuration))
+        {
+            await client.AnswerCallbackQuery(
+                callbackQuery.Id,
+                "Недоступно",
+                showAlert: true,
+                cancellationToken: cancellationToken);
+            return;
+        }
 
         var dayPart = callbackQuery.Data? ["check:day:".Length..];
         if (string.IsNullOrWhiteSpace(dayPart) || !int.TryParse(dayPart, NumberStyles.Integer, CultureInfo.InvariantCulture, out var day))

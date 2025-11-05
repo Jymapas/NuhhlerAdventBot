@@ -85,14 +85,14 @@ public abstract class HandlerBase
         return user.Id.ToString();
     }
 
-    protected bool EnsureOwner(long userId, string? username)
+    protected bool IsOwner(long userId, string? username)
     {
-        var isOwner = OwnerGuard.IsOwner(userId, Configuration);
-        if (!isOwner)
+        var allowed = AuthExtensions.IsAllowedOwner(userId, Configuration);
+        if (!allowed)
         {
-            Logger.LogWarning("User {UserId} ({Username}) is not in OWNER_IDS", userId, username);
+            Logger.LogWarning("User {UserId} ({Username}) is not allowed to manage campaigns", userId, username);
         }
 
-        return isOwner;
+        return allowed;
     }
 }

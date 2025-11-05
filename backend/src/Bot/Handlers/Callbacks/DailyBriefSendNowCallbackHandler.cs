@@ -3,6 +3,8 @@ using System.Globalization;
 using Application.Abstractions;
 using Application.Services;
 using Bot.Callbacks;
+using Bot.Security;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
@@ -13,11 +15,16 @@ namespace Bot.Handlers.Callbacks;
 public sealed class DailyBriefSendNowCallbackHandler : ICallbackHandler
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<DailyBriefSendNowCallbackHandler> _logger;
 
-    public DailyBriefSendNowCallbackHandler(IServiceScopeFactory scopeFactory, ILogger<DailyBriefSendNowCallbackHandler> logger)
+    public DailyBriefSendNowCallbackHandler(
+        IServiceScopeFactory scopeFactory,
+        IConfiguration configuration,
+        ILogger<DailyBriefSendNowCallbackHandler> logger)
     {
         _scopeFactory = scopeFactory;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -27,6 +34,16 @@ public sealed class DailyBriefSendNowCallbackHandler : ICallbackHandler
     {
         if (callbackQuery.Message is null || callbackQuery.From is null)
             return;
+
+        if (!AuthExtensions.IsAllowedOwner(callbackQuery.From.Id, _configuration))
+        {
+            await client.AnswerCallbackQuery(
+                callbackQuery.Id,
+                "Недоступно",
+                showAlert: true,
+                cancellationToken: cancellationToken);
+            return;
+        }
 
         var data = callbackQuery.Data ?? string.Empty;
         var parts = data.Split(':', StringSplitOptions.RemoveEmptyEntries);
@@ -46,9 +63,13 @@ public sealed class DailyBriefSendNowCallbackHandler : ICallbackHandler
         {
             var user = await userRepository.EnsureAsync(callbackQuery.From.Id, callbackQuery.From.Username, callbackQuery.From.FirstName, cancellationToken);
             var campaign = await adventRepository.GetCampaignAsync(campaignId, cancellationToken);
-            if (campaign is null || campaign.OwnerUserId != user.Id)
+            if (!OwnershipGuards.IsCampaignOwner(campaign, user.Id))
             {
-                await client.AnswerCallbackQuery(callbackQuery.Id, "Нет доступа.", cancellationToken: cancellationToken);
+                await client.AnswerCallbackQuery(
+                    callbackQuery.Id,
+                    "Недоступно",
+                    showAlert: true,
+                    cancellationToken: cancellationToken);
                 return;
             }
 

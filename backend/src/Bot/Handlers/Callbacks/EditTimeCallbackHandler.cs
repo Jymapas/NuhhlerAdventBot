@@ -4,6 +4,8 @@ using System.Globalization;
 using Application.Abstractions;
 using Bot.Callbacks;
 using Bot.Fsm;
+using Bot.Security;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
@@ -14,15 +16,18 @@ namespace Bot.Handlers.Callbacks;
 public sealed class EditTimeCallbackHandler : ICallbackHandler
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IConfiguration _configuration;
     private readonly IFsmStorage _fsmStorage;
     private readonly ILogger<EditTimeCallbackHandler> _logger;
 
     public EditTimeCallbackHandler(
         IServiceScopeFactory scopeFactory,
+        IConfiguration configuration,
         IFsmStorage fsmStorage,
         ILogger<EditTimeCallbackHandler> logger)
     {
         _scopeFactory = scopeFactory;
+        _configuration = configuration;
         _fsmStorage = fsmStorage;
         _logger = logger;
     }
@@ -33,6 +38,16 @@ public sealed class EditTimeCallbackHandler : ICallbackHandler
     {
         if (callbackQuery.Message is null || callbackQuery.From is null)
             return;
+
+        if (!AuthExtensions.IsAllowedOwner(callbackQuery.From.Id, _configuration))
+        {
+            await client.AnswerCallbackQuery(
+                callbackQuery.Id,
+                "Недоступно",
+                showAlert: true,
+                cancellationToken: cancellationToken);
+            return;
+        }
 
         var dateIso = callbackQuery.Data? ["edit:time:".Length..];
         if (string.IsNullOrWhiteSpace(dateIso))

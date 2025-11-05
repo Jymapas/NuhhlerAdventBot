@@ -1,7 +1,9 @@
 using System;
 using System.Globalization;
 using Bot.Callbacks;
+using Bot.Security;
 using Bot.Keyboards;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -10,10 +12,14 @@ namespace Bot.Handlers.Callbacks;
 
 public sealed class CheckRangesCallbackHandler : ICallbackHandler
 {
+    private readonly IConfiguration _configuration;
     private readonly ILogger<CheckRangesCallbackHandler> _logger;
 
-    public CheckRangesCallbackHandler(ILogger<CheckRangesCallbackHandler> logger)
+    public CheckRangesCallbackHandler(
+        IConfiguration configuration,
+        ILogger<CheckRangesCallbackHandler> logger)
     {
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -24,8 +30,18 @@ public sealed class CheckRangesCallbackHandler : ICallbackHandler
 
     public async Task HandleAsync(ITelegramBotClient client, CallbackQuery callbackQuery, CancellationToken cancellationToken)
     {
-        if (callbackQuery.Message is null)
+        if (callbackQuery.Message is null || callbackQuery.From is null)
             return;
+
+        if (!AuthExtensions.IsAllowedOwner(callbackQuery.From.Id, _configuration))
+        {
+            await client.AnswerCallbackQuery(
+                callbackQuery.Id,
+                "Недоступно",
+                showAlert: true,
+                cancellationToken: cancellationToken);
+            return;
+        }
 
         var data = callbackQuery.Data ?? string.Empty;
 
