@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
+using Shared.Logging;
 using UserEntity = Domain.Users.User;
 
 namespace Worker.DailyBrief;
@@ -46,6 +47,7 @@ public sealed class DailyBriefService : BackgroundService
                 if (ShouldSendBrief(nowLocal, _lastBriefDate))
                 {
                     var today = DateOnly.FromDateTime(nowLocal);
+                    _logger.LogInformation("Daily brief tick for {Date}", today);
                     await RunDailyBriefTickAsync(today, stoppingToken);
                     _lastBriefDate = today;
                 }
@@ -90,30 +92,41 @@ public sealed class DailyBriefService : BackgroundService
         var campaigns = await adventRepository.GetCampaignsForDailyBriefAsync(ct);
         foreach (var campaign in campaigns)
         {
-            if (todayLocal < campaign.StartDate || todayLocal > campaign.EndDate)
-                continue;
+            try
+            {
+                if (todayLocal < campaign.StartDate || todayLocal > campaign.EndDate)
+                    continue;
 
-            if (!campaign.RecipientUserId.HasValue)
-                continue;
+                if (!campaign.RecipientUserId.HasValue)
+                    continue;
 
-            var day = campaign.Days.FirstOrDefault(d => d.Date == todayLocal);
-            if (day is null)
-                continue;
+                var day = campaign.Days.FirstOrDefault(d => d.Date == todayLocal);
+                if (day is null)
+                    continue;
 
-            var recipient = await userRepository.GetByIdAsync(campaign.RecipientUserId.Value, ct);
-            if (recipient is null)
-                continue;
+                var recipient = await userRepository.GetByIdAsync(campaign.RecipientUserId.Value, ct);
+                if (recipient is null)
+                    continue;
 
-            var owner = await userRepository.GetByIdAsync(campaign.OwnerUserId, ct);
-            if (owner?.TelegramId is null or 0)
-                continue;
+                var owner = await userRepository.GetByIdAsync(campaign.OwnerUserId, ct);
+                if (owner?.TelegramId is null or 0)
+                    continue;
 
-            var sendTime = day.OverrideSendTime ?? campaign.DefaultSendTime;
-            var recipientDisplay = BuildRecipientDisplay(recipient);
-            var message = BuildPreviewMessage(campaign, day, todayLocal, sendTime, recipientDisplay);
-            var keyboard = DailyBriefKeyboards.BuildDailyBriefKeyboard(campaign.Id, todayLocal.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+                var dateIso = todayLocal.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                using var scope = LogScopes.WithCampaign(campaign.Id, dateIso);
 
-            await _botClient.SendMessage(new ChatId(owner.TelegramId), message, replyMarkup: keyboard, cancellationToken: ct);
+                var sendTime = day.OverrideSendTime ?? campaign.DefaultSendTime;
+                var recipientDisplay = BuildRecipientDisplay(recipient);
+                var message = BuildPreviewMessage(campaign, day, todayLocal, sendTime, recipientDisplay);
+                var keyboard = DailyBriefKeyboards.BuildDailyBriefKeyboard(campaign.Id, todayLocal.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+
+                await _botClient.SendMessage(new ChatId(owner.TelegramId), message, replyMarkup: keyboard, cancellationToken: ct);
+                _logger.LogInformation("Daily brief sent for campaign {CampaignId} date {Date}", campaign.Id, dateIso);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send daily brief for campaign {CampaignId}", campaign.Id);
+            }
         }
     }
 
