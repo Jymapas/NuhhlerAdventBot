@@ -62,6 +62,18 @@ public sealed class CommandDispatcher : ICommandDispatcher
             return;
         }
 
-        await handler.HandleAsync(client, update, command, args, cancellationToken);
+        try
+        {
+            await handler.HandleAsync(client, update, command, args, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            var handlerType = handler.GetType().Name;
+            _logger.LogError(ex, "Command handler failed: {Handler}", handlerType);
+            await client.SendMessage(
+                new ChatId(chat.Id),
+                "Что-то пошло не так. Попробуйте ещё раз чуть позже.",
+                cancellationToken: cancellationToken);
+        }
     }
 }
