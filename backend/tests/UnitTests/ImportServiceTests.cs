@@ -10,6 +10,7 @@ using Infrastructure.Persistence;
 using Infrastructure.Repositories;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 public class ImportServiceTests
@@ -20,7 +21,7 @@ public class ImportServiceTests
         using var context = CreateContext();
         var (campaign, repository) = await SeedCampaignAsync(context);
 
-        var service = new ImportService(repository);
+        var service = new ImportService(repository, NullLogger<ImportService>.Instance);
         var rows = CreateRows(1, 3);
 
         var result = await service.ImportIntoCampaignAsync(campaign.OwnerUserId, campaign.Id, rows, CancellationToken.None);
@@ -36,7 +37,7 @@ public class ImportServiceTests
         using var context = CreateContext();
         var (campaign, repository) = await SeedCampaignAsync(context);
 
-        var service = new ImportService(repository);
+        var service = new ImportService(repository, NullLogger<ImportService>.Instance);
         var rows = new List<ImportRow>
         {
             new() { Date = new DateOnly(campaign.StartDate.Year, 12, 1), Text = "one" },
@@ -54,7 +55,7 @@ public class ImportServiceTests
         using var context = CreateContext();
         var (campaign, repository) = await SeedCampaignAsync(context);
 
-        var service = new ImportService(repository);
+        var service = new ImportService(repository, NullLogger<ImportService>.Instance);
         var rows = new List<ImportRow>
         {
             new() { Date = new DateOnly(campaign.StartDate.Year, 11, 30), Text = "invalid" }
