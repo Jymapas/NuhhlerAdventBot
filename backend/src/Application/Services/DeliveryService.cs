@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types;
+using Shared.Logging;
 
 namespace Application.Services;
 
@@ -69,6 +70,10 @@ public sealed class DeliveryService
             return "Кампания не найдена.";
         }
 
+        var dateIso = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        using var scope = LogScopes.WithCampaign(campaignId, dateIso);
+        _logger.LogInformation("Manual delivery requested for campaign {CampaignId} date {Date}", campaignId, dateIso);
+
         if (!campaign.RecipientUserId.HasValue || campaign.RecipientStatus != RecipientStatus.Ready)
         {
             return "Получатель ещё не назначен.";
@@ -84,6 +89,7 @@ public sealed class DeliveryService
         var log = await _deliveryLogRepository.GetLogAsync(campaign.Id, recipientId, date, ct);
         if (log is not null && log.Status == DeliveryStatus.Sent)
         {
+            _logger.LogInformation("Manual delivery skipped as already sent");
             return $"Сообщение за {date:yyyy-MM-dd} уже было отправлено.";
         }
 
@@ -114,6 +120,8 @@ public sealed class DeliveryService
 
         var status = await AttemptDeliveryAsync(campaign, day, log, ct);
 
+        _logger.LogInformation("Manual delivery completed with status {Status}", status);
+
         return status switch
         {
             DeliveryStatus.Sent => $"Сообщение за {date:yyyy-MM-dd} отправлено вручную.",
@@ -139,6 +147,9 @@ public sealed class DeliveryService
             if (day is null)
                 continue;
 
+            var dateIso = todayLocal.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            using var scope = LogScopes.WithCampaign(campaign.Id, dateIso);
+
             var sendTime = day.OverrideSendTime ?? campaign.DefaultSendTime;
             if (sendTime.Hour != currentMinute.Hour || sendTime.Minute != currentMinute.Minute)
                 continue;
@@ -159,7 +170,7 @@ public sealed class DeliveryService
             if (alreadySent)
                 continue;
 
-            _logger.LogInformation("Sending message for campaign {CampaignId} date {Date}", campaign.Id, todayLocal);
+            _logger.LogInformation("Scheduled delivery triggered at {Time}", sendTime);
 
             var log = new DeliveryLog
             {
@@ -209,6 +220,9 @@ public sealed class DeliveryService
                 continue;
             }
 
+            var dateIso = log.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            using var scope = LogScopes.WithCampaign(campaign.Id, dateIso);
+
             _logger.LogInformation("Retry delivery for campaign {CampaignId} date {Date} attempt #{Attempt}", log.CampaignId, log.Date, log.Attempts + 1);
             _ = await AttemptDeliveryAsync(campaign, day, log, ct);
         }
@@ -218,6 +232,10 @@ public sealed class DeliveryService
     {
         log.Attempts += 1;
         log.LastAttemptAtUtc = DateTime.UtcNow;
+
+        var dateIso = log.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        using var scope = LogScopes.WithCampaign(campaign.Id, dateIso);
+        _logger.LogInformation("Attempt {Attempt} to deliver message", log.Attempts);
 
         var recipient = await _userRepository.GetByIdAsync(log.RecipientUserId, ct);
         if (recipient is null || recipient.TelegramId == 0)
@@ -239,22 +257,24 @@ public sealed class DeliveryService
             log.Error = null;
 
             await _deliveryLogRepository.SaveAsync(log, ct);
+            _logger.LogInformation("Delivered message: msgId={MessageId}", message.MessageId);
             return DeliveryStatus.Sent;
         }
         catch (ApiRequestException apiEx)
         {
             var final = IsFinalError(apiEx) || log.Attempts >= MaxAttempts;
             var reason = apiEx.Message;
+            var retryAfter = apiEx.Parameters?.RetryAfter;
             if (final)
             {
+                _logger.LogError(apiEx, "Telegram final error; giving up ({ErrorCode}) {Message} retryAfter={RetryAfter}", apiEx.ErrorCode, reason, retryAfter);
                 await HandleFinalFailureAsync(campaign, log, reason, ct);
                 return DeliveryStatus.Failed;
             }
-            else
-            {
-                await HandleRetryAsync(log, reason, ct);
-                return DeliveryStatus.Retry;
-            }
+
+            _logger.LogWarning(apiEx, "Telegram transient error; will retry ({ErrorCode}) {Message} retryAfter={RetryAfter}", apiEx.ErrorCode, reason, retryAfter);
+            await HandleRetryAsync(log, reason, ct);
+            return DeliveryStatus.Retry;
         }
         catch (Exception ex)
         {
@@ -278,7 +298,8 @@ public sealed class DeliveryService
         log.Status = DeliveryStatus.Retry;
         log.Error = reason;
         await _deliveryLogRepository.SaveAsync(log, ct);
-        _logger.LogInformation("Scheduled retry for campaign {CampaignId} date {Date}, attempts {Attempts}", log.CampaignId, log.Date, log.Attempts);
+        using var scope = LogScopes.WithCampaign(log.CampaignId, log.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        _logger.LogInformation("Scheduled retry, attempts {Attempts}", log.Attempts);
     }
 
     private async Task HandleFinalFailureAsync(AdventCampaign campaign, DeliveryLog log, string reason, CancellationToken ct)
@@ -286,7 +307,8 @@ public sealed class DeliveryService
         log.Status = DeliveryStatus.Failed;
         log.Error = reason;
         await _deliveryLogRepository.SaveAsync(log, ct);
-        _logger.LogWarning("Delivery failed for campaign {CampaignId} date {Date}: {Reason}", campaign.Id, log.Date, reason);
+        using var scope = LogScopes.WithCampaign(campaign.Id, log.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        _logger.LogWarning("Delivery failed: {Reason}", reason);
         await NotifyOwnerAsync(campaign, log.Date, reason, ct);
     }
 
@@ -301,6 +323,7 @@ public sealed class DeliveryService
         var campaign = await _adventRepository.GetCampaignAsync(log.CampaignId, ct);
         if (campaign is not null)
         {
+            using var scope = LogScopes.WithCampaign(campaign.Id, log.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
             await NotifyOwnerAsync(campaign, log.Date, reason, ct);
         }
     }
@@ -315,6 +338,7 @@ public sealed class DeliveryService
 
         try
         {
+            using var scope = LogScopes.WithCampaign(campaign.Id, date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
             await _botClient.SendMessage(new ChatId(owner.TelegramId), text, cancellationToken: ct);
         }
         catch (Exception ex)
