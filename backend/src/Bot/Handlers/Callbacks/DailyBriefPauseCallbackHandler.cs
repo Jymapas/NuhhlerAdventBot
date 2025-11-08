@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Shared.Logging;
 
 namespace Bot.Handlers.Callbacks;
 
@@ -71,6 +72,9 @@ public sealed class DailyBriefPauseCallbackHandler : ICallbackHandler
                     cancellationToken: cancellationToken);
                 return;
             }
+
+            using var campaignScope = LogScopes.WithCampaign(campaignId, parts[3]);
+            _logger.LogInformation("Pausing campaign via brief callback");
 
             if (campaign.Status != CampaignStatus.Paused)
             {

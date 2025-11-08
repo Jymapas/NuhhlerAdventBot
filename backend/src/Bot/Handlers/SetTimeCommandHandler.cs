@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Shared.Logging;
 
 namespace Bot.Handlers;
 
@@ -52,6 +53,7 @@ public sealed class SetTimeCommandHandler : HandlerBase, ICommandHandler
         using var scope = _scopeFactory.CreateScope();
         var userRepository = scope.ServiceProvider.GetRequiredService<IUserRepository>();
         var timeSetupService = scope.ServiceProvider.GetRequiredService<TimeSetupService>();
+        var adventRepository = scope.ServiceProvider.GetRequiredService<IAdventRepository>();
 
         var user = await userRepository.EnsureAsync(update.Message.From.Id, update.Message.From.Username, update.Message.From.FirstName, cancellationToken);
         var chatId = new ChatId(GetChatId(update));
@@ -72,6 +74,10 @@ public sealed class SetTimeCommandHandler : HandlerBase, ICommandHandler
                 return;
             }
 
+            var campaign = await adventRepository.GetActiveOrDraftByOwnerAsync(user.Id, cancellationToken);
+            using var campaignScope = LogScopes.WithCampaign(campaign?.Id, null);
+            Logger.LogInformation("Updating campaign default time to {Time}", time);
+
             var result = await timeSetupService.SetCampaignTimeAsync(user.Id, time, cancellationToken);
             if (!result.ok)
             {
@@ -91,6 +97,11 @@ public sealed class SetTimeCommandHandler : HandlerBase, ICommandHandler
                 return;
             }
 
+            var dateIso = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            var campaign = await adventRepository.GetActiveOrDraftByOwnerAsync(user.Id, cancellationToken);
+            using var campaignScope = LogScopes.WithCampaign(campaign?.Id, dateIso);
+            Logger.LogInformation("Updating day time command for {Date}", dateIso);
+
             if (string.Equals(parts[1], "default", StringComparison.OrdinalIgnoreCase))
             {
                 var resetResult = await timeSetupService.ResetDayTimeAsync(user.Id, date, cancellationToken);
@@ -100,6 +111,7 @@ public sealed class SetTimeCommandHandler : HandlerBase, ICommandHandler
                     return;
                 }
 
+                Logger.LogInformation("Time override cleared for {Date}", dateIso);
                 await client.SendMessage(chatId, $"Для {date:yyyy-MM-dd} теперь используется время кампании.", cancellationToken: cancellationToken);
                 return;
             }
@@ -117,6 +129,7 @@ public sealed class SetTimeCommandHandler : HandlerBase, ICommandHandler
                 return;
             }
 
+            Logger.LogInformation("Time override set for {Date} to {Time}", dateIso, time);
             await client.SendMessage(chatId, $"Для {date:yyyy-MM-dd} установлено время {time:HH\\:mm}", cancellationToken: cancellationToken);
             return;
         }
