@@ -1,0 +1,15 @@
+**/bin/
+**/obj/
+**/.idea/
+**/.vs/
+**/*.user
+**/*.suo
+**/*.swp
+**/.DS_Store
+**/node_modules/
+**/logs/
+**/data/
+**/*.db
+**/*.db-shm
+**/*.db-wal
+.env
