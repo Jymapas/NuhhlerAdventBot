@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 using Application.Abstractions;
 using Bot.Callbacks;
 using Bot.Commands;
@@ -9,11 +10,11 @@ using Bot.Hosting;
 using Bot.Updates;
 using Infrastructure;
 using Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.EntityFrameworkCore;
 using Shared.Env;
 using Shared.Logging;
 using Serilog;
@@ -23,9 +24,10 @@ try
     EnvFileLoader.LoadFromAncestors();
 
     var builder = Host.CreateApplicationBuilder(args);
-
     builder.Configuration.AddEnvironmentVariables();
-    SerilogBootstrap.ConfigureSerilog(builder);
+
+    SerilogBootstrap.ConfigureSerilog(builder, builder.Configuration["BOT_LOG_PATH"], "bot");
+    GlobalExceptionHandler.Register("Bot");
 
     builder.Services.AddInfrastructure(builder.Configuration);
     builder.Services.AddSingleton<IFsmStorage, InMemoryFsmStorage>();
@@ -75,11 +77,19 @@ try
     var info = app.Services.GetRequiredService<IBotInfo>();
     logger.LogInformation("Advent Bot (Bot) starting; version: {Version}", info.Version);
 
-    await app.RunAsync();
+    try
+    {
+        await app.RunAsync();
+    }
+    catch (Exception runEx)
+    {
+        logger.LogCritical(runEx, "Host terminated unexpectedly");
+        Log.Fatal(runEx, "Advent Bot (Bot) terminated unexpectedly");
+    }
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "Advent Bot (Bot) terminated unexpectedly");
+    Log.Fatal(ex, "Advent Bot (Bot) failed during initialization");
 }
 finally
 {

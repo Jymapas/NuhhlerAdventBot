@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Application.Services;
@@ -23,7 +24,9 @@ public sealed class AdventScheduler : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            _logger.LogInformation("Delivery tick start {UtcNow}", DateTime.UtcNow);
+            var tickStart = DateTime.UtcNow;
+            _logger.LogInformation("Delivery tick start {UtcNow}", tickStart);
+            var sw = Stopwatch.StartNew();
 
             try
             {
@@ -39,12 +42,23 @@ public sealed class AdventScheduler : BackgroundService
             {
                 _logger.LogError(ex, "Delivery tick failed");
             }
-
-            _logger.LogInformation("Delivery tick end {UtcNow}", DateTime.UtcNow);
+            finally
+            {
+                sw.Stop();
+                _logger.LogInformation("Delivery tick end {UtcNow}; duration {DurationMs} ms", DateTime.UtcNow, sw.Elapsed.TotalMilliseconds);
+            }
 
             try
             {
-                await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+                var now = DateTime.UtcNow;
+                var millisecondsIntoMinute = (now.Second * 1000) + now.Millisecond;
+                var delayMs = 60000 - millisecondsIntoMinute;
+                if (delayMs <= 0)
+                {
+                    delayMs = 1000;
+                }
+
+                await Task.Delay(TimeSpan.FromMilliseconds(delayMs), stoppingToken);
             }
             catch (OperationCanceledException)
             {

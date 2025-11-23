@@ -36,7 +36,22 @@ public sealed class CallbackDispatcher : ICallbackDispatcher
             return;
         }
 
-        await handler.HandleAsync(client, callbackQuery, cancellationToken);
+        try
+        {
+            await handler.HandleAsync(client, callbackQuery, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            var handlerType = handler.GetType().Name;
+            _logger.LogError(ex, "Callback handler failed: {Handler}", handlerType);
+            await client.AnswerCallbackQuery(
+                callbackQuery.Id,
+                text: "Что-то пошло не так. Попробуйте ещё раз.",
+                showAlert: true,
+                cancellationToken: cancellationToken);
+            return;
+        }
+
         await client.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: cancellationToken);
     }
 }

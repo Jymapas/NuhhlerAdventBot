@@ -12,6 +12,7 @@ using Bot.Security;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Shared.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -45,58 +46,71 @@ public sealed class UpdateRouter : IUpdateRouter
 
     public async Task HandleAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
     {
-        switch (update.Type)
+        var actor = update.Message?.From ?? update.CallbackQuery?.From ?? update.MyChatMember?.From;
+        using var scope = LogScopes.WithUpdate(update.Id, actor?.Id, actor?.Username);
+
+        try
         {
-            case UpdateType.Message when update.Message is { Text: { } text }:
+            _logger.LogInformation("Processing update {Type}", update.Type);
+
+            switch (update.Type)
             {
-                if (update.Message.From is not null)
+                case UpdateType.Message when update.Message is { Text: { } text }:
                 {
-                    var snapshot = await _fsmStorage.GetAsync(update.Message.From.Id);
-                    if (snapshot is not null && !text.TrimStart().StartsWith("/", StringComparison.Ordinal))
+                    if (update.Message.From is not null)
                     {
-                        var handled = await HandleTextInputAsync(botClient, update.Message, text, snapshot, cancellationToken);
-                        if (handled)
+                        var snapshot = await _fsmStorage.GetAsync(update.Message.From.Id);
+                        if (snapshot is not null && !text.TrimStart().StartsWith("/", StringComparison.Ordinal))
                         {
-                            return;
+                            var handled = await HandleTextInputAsync(botClient, update.Message, text, snapshot, cancellationToken);
+                            if (handled)
+                            {
+                                return;
+                            }
                         }
                     }
+
+                    if (!text.TrimStart().StartsWith("/", StringComparison.Ordinal))
+                    {
+                        return;
+                    }
+
+                    var command = text.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries)[0];
+                    var user = update.Message!.From;
+                    _logger.LogInformation("Dispatching command {Command} from user {UserId} ({Username})", command, user?.Id, user?.Username);
+
+                    await _commandDispatcher.DispatchAsync(botClient, update, cancellationToken);
+                    break;
                 }
 
-                if (!text.TrimStart().StartsWith("/", StringComparison.Ordinal))
+                case UpdateType.Message when update.Message is { Document: not null }:
                 {
-                    return;
+                    _logger.LogInformation("Received document for import");
+                    await HandleImportFileAsync(botClient, update.Message, cancellationToken);
+                    break;
                 }
 
-                var command = text.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries)[0];
-                var user = update.Message!.From;
-                _logger.LogInformation("Command {Command} from user {UserId} ({Username})", command, user?.Id, user?.Username);
+                case UpdateType.CallbackQuery when update.CallbackQuery is { } callback:
+                {
+                    _logger.LogInformation("Dispatching callback {Data}", callback.Data);
+                    await _callbackDispatcher.DispatchAsync(botClient, callback, cancellationToken);
+                    break;
+                }
 
-                await _commandDispatcher.DispatchAsync(botClient, update, cancellationToken);
-                break;
+                case UpdateType.MyChatMember when update.MyChatMember is { } chatMember:
+                {
+                    _logger.LogInformation("Chat member update: status {Status}", chatMember.NewChatMember.Status);
+                    break;
+                }
             }
-
-            case UpdateType.Message when update.Message is { Document: not null }:
-            {
-                await HandleImportFileAsync(botClient, update.Message, cancellationToken);
-                break;
-            }
-
-            case UpdateType.CallbackQuery when update.CallbackQuery is { } callback:
-            {
-                var user = callback.From;
-                _logger.LogInformation("Callback {Data} from user {UserId} ({Username})", callback.Data, user.Id, user.Username);
-
-                await _callbackDispatcher.DispatchAsync(botClient, callback, cancellationToken);
-                break;
-            }
-
-            case UpdateType.MyChatMember when update.MyChatMember is { } chatMember:
-            {
-                var user = chatMember.From;
-                _logger.LogInformation("Chat member update: status {Status}; user {UserId} ({Username})",
-                    chatMember.NewChatMember.Status, user.Id, user.Username);
-                break;
-            }
+        }
+        catch (OperationCanceledException)
+        {
+            // graceful shutdown
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Router failure");
         }
     }
 
@@ -135,6 +149,9 @@ public sealed class UpdateRouter : IUpdateRouter
                 return;
             }
 
+            using var campaignScope = LogScopes.WithCampaign(campaignId, null);
+            _logger.LogInformation("Starting import for campaign {CampaignId}", campaignId);
+
             long ownerId;
             if (snapshot.Payload.TryGetValue("ownerId", out var ownerIdRaw) &&
                 long.TryParse(ownerIdRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedOwnerId))
@@ -169,6 +186,8 @@ public sealed class UpdateRouter : IUpdateRouter
 
             var rows = await importParser.ParseAsync(stream, document.FileName ?? "import", ct);
             var result = await importService.ImportIntoCampaignAsync(ownerId, campaignId, rows, ct);
+
+            _logger.LogInformation("Import processed: created={Created} updated={Updated} errors={ErrorsCount}", result.CreatedDays, result.UpdatedDays, result.Errors.Count);
 
             if (result.Errors.Count == 0)
             {
@@ -250,6 +269,9 @@ public sealed class UpdateRouter : IUpdateRouter
             return;
         }
 
+        using var campaignScope = LogScopes.WithCampaign(campaignId, dateIso);
+        _logger.LogInformation("Updating text via FSM for {Date}", dateIso);
+
         using var scope = _scopeFactory.CreateScope();
         var userRepository = scope.ServiceProvider.GetRequiredService<IUserRepository>();
         var adventRepository = scope.ServiceProvider.GetRequiredService<IAdventRepository>();
@@ -271,6 +293,7 @@ public sealed class UpdateRouter : IUpdateRouter
         await adventRepository.UpsertDayAsync(day, ct);
 
         await _fsmStorage.ClearAsync(message.From.Id);
+        _logger.LogInformation("Text updated via FSM for {Date}", dateIso);
         await client.SendMessage(new ChatId(message.Chat.Id), "Сохранено ✅", cancellationToken: ct);
     }
 
@@ -290,6 +313,8 @@ public sealed class UpdateRouter : IUpdateRouter
             await _fsmStorage.ClearAsync(message.From!.Id);
             return;
         }
+
+        using var campaignScope = LogScopes.WithCampaign(null, dateIso);
 
         using var scope = _scopeFactory.CreateScope();
         var userRepository = scope.ServiceProvider.GetRequiredService<IUserRepository>();
@@ -320,6 +345,7 @@ public sealed class UpdateRouter : IUpdateRouter
             }
 
             await _fsmStorage.ClearAsync(message.From.Id);
+            _logger.LogInformation("Time reset via FSM for {Date}", dateIso);
             await client.SendMessage(new ChatId(message.Chat.Id), $"Для {date:yyyy-MM-dd} теперь используется время кампании.", cancellationToken: ct);
             return;
         }
@@ -332,6 +358,7 @@ public sealed class UpdateRouter : IUpdateRouter
         }
 
         await _fsmStorage.ClearAsync(message.From.Id);
+        _logger.LogInformation("Time updated via FSM for {Date} to {Time}", dateIso, overrideTime.Value);
         await client.SendMessage(new ChatId(message.Chat.Id), $"Для {date:yyyy-MM-dd} установлено время {overrideTime.Value:HH\\:mm}", cancellationToken: ct);
     }
 }

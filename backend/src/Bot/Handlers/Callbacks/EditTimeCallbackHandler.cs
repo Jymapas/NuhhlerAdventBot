@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Shared.Logging;
 
 namespace Bot.Handlers.Callbacks;
 
@@ -70,6 +71,9 @@ public sealed class EditTimeCallbackHandler : ICallbackHandler
                 await client.AnswerCallbackQuery(callbackQuery.Id, "Нет активной кампании.", cancellationToken: cancellationToken);
                 return;
             }
+
+            using var campaignScope = LogScopes.WithCampaign(campaign.Id, dateIso);
+            _logger.LogInformation("Entering edit time mode for {Date}", dateIso);
 
             var snapshot = new FsmSnapshot
             {

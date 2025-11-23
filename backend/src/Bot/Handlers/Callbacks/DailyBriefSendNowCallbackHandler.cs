@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Shared.Logging;
 
 namespace Bot.Handlers.Callbacks;
 
@@ -73,7 +74,12 @@ public sealed class DailyBriefSendNowCallbackHandler : ICallbackHandler
                 return;
             }
 
+            var dateIso = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            using var campaignScope = LogScopes.WithCampaign(campaignId, dateIso);
+
+            _logger.LogInformation("Manual send requested");
             var result = await deliveryService.SendSingleDayNowAsync(campaignId, date, cancellationToken);
+            _logger.LogInformation("Manual send finished: {Result}", result);
             await client.SendMessage(callbackQuery.Message.Chat.Id, result, cancellationToken: cancellationToken);
             await client.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: cancellationToken);
         }
