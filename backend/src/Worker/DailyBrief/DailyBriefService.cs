@@ -113,7 +113,7 @@ public sealed class DailyBriefService : BackgroundService
                     continue;
 
                 var dateIso = todayLocal.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-                using var scope = LogScopes.WithCampaign(campaign.Id, dateIso);
+                using var campaignScope = LogScopes.WithCampaign(campaign.Id, dateIso);
 
                 var sendTime = day.OverrideSendTime ?? campaign.DefaultSendTime;
                 var recipientDisplay = BuildRecipientDisplay(recipient);
