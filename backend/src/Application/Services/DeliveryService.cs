@@ -33,13 +33,15 @@ public sealed class DeliveryService
     private readonly ITelegramBotClient _botClient;
     private readonly ILogger<DeliveryService> _logger;
     private readonly TimeZoneInfo _almatyTz;
+    private readonly Func<DateTime> _utcNowProvider;
 
     public DeliveryService(
         IAdventRepository adventRepository,
         IUserRepository userRepository,
         IDeliveryLogRepository deliveryLogRepository,
         ITelegramBotClient botClient,
-        ILogger<DeliveryService> logger)
+        ILogger<DeliveryService> logger,
+        Func<DateTime>? utcNowProvider = null)
     {
         _adventRepository = adventRepository;
         _userRepository = userRepository;
@@ -47,11 +49,12 @@ public sealed class DeliveryService
         _botClient = botClient;
         _logger = logger;
         _almatyTz = GetAlmatyTimeZone();
+        _utcNowProvider = utcNowProvider ?? (() => DateTime.UtcNow);
     }
 
     public async Task RunScheduledDeliveryTickAsync(CancellationToken ct)
     {
-        var nowUtc = DateTime.UtcNow;
+        var nowUtc = _utcNowProvider();
         var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(nowUtc, _almatyTz);
         var todayLocal = DateOnly.FromDateTime(nowLocal);
         var currentMinute = new TimeOnly(nowLocal.Hour, nowLocal.Minute);
@@ -101,15 +104,15 @@ public sealed class DeliveryService
                 RecipientUserId = recipientId,
                 Date = date,
                 Attempts = 0,
-                CreatedAtUtc = DateTime.UtcNow,
-                LastAttemptAtUtc = DateTime.UtcNow
+                CreatedAtUtc = _utcNowProvider(),
+                LastAttemptAtUtc = _utcNowProvider()
             };
         }
         else
         {
             if (log.CreatedAtUtc == default)
             {
-                log.CreatedAtUtc = DateTime.UtcNow;
+                log.CreatedAtUtc = _utcNowProvider();
             }
         }
 
@@ -178,8 +181,8 @@ public sealed class DeliveryService
                 RecipientUserId = recipientId,
                 Date = todayLocal,
                 Attempts = 0,
-                CreatedAtUtc = DateTime.UtcNow,
-                LastAttemptAtUtc = DateTime.UtcNow
+                CreatedAtUtc = _utcNowProvider(),
+                LastAttemptAtUtc = _utcNowProvider()
             };
 
             _ = await AttemptDeliveryAsync(campaign, day, log, ct);
@@ -231,7 +234,7 @@ public sealed class DeliveryService
     private async Task<DeliveryStatus> AttemptDeliveryAsync(AdventCampaign campaign, AdventDay day, DeliveryLog log, CancellationToken ct)
     {
         log.Attempts += 1;
-        log.LastAttemptAtUtc = DateTime.UtcNow;
+        log.LastAttemptAtUtc = _utcNowProvider();
 
         var dateIso = log.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         using var scope = LogScopes.WithCampaign(campaign.Id, dateIso);
@@ -253,7 +256,7 @@ public sealed class DeliveryService
 
             log.Status = DeliveryStatus.Sent;
             log.TelegramMessageId = message.MessageId;
-            log.SentAtUtc = DateTime.UtcNow;
+            log.SentAtUtc = _utcNowProvider();
             log.Error = null;
 
             await _deliveryLogRepository.SaveAsync(log, ct);
@@ -317,7 +320,7 @@ public sealed class DeliveryService
         log.Attempts = Math.Max(log.Attempts, MaxAttempts);
         log.Status = DeliveryStatus.Failed;
         log.Error = reason;
-        log.LastAttemptAtUtc = DateTime.UtcNow;
+        log.LastAttemptAtUtc = _utcNowProvider();
         await _deliveryLogRepository.SaveAsync(log, ct);
 
         var campaign = await _adventRepository.GetCampaignAsync(log.CampaignId, ct);
