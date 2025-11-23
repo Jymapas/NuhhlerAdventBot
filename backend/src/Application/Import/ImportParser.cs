@@ -38,6 +38,11 @@ public sealed class ImportParser : IImportParser
         });
 
         var rows = new List<ImportRow>();
+        if (await csv.ReadAsync())
+        {
+            csv.ReadHeader();
+        }
+
         while (await csv.ReadAsync())
         {
             ct.ThrowIfCancellationRequested();
