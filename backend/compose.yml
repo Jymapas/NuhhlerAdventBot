@@ -1,0 +1,53 @@
+version: "3.9"
+
+x-common-env: &common-env
+  TZ: Asia/Almaty
+  ASPNETCORE_ENVIRONMENT: Production
+  DB_PATH: "/app/data/advent.db"
+  BOT_LOG_PATH: "/app/logs/bot.log"
+  WORKER_LOG_PATH: "/app/logs/worker.log"
+
+x-common-volumes: &common-vols
+  - ./data:/app/data
+  - ./logs:/app/logs
+
+services:
+  advent-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: bot
+    image: advent-bot:latest
+    container_name: advent-bot
+    environment:
+      <<: *common-env
+      BOT_TOKEN: ${BOT_TOKEN:?err}
+      OWNER_IDS: ${OWNER_IDS:-}
+    volumes: *common-vols
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /proc/1/cmdline && dotnet --info >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  advent-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
+    image: advent-worker:latest
+    container_name: advent-worker
+    environment:
+      <<: *common-env
+      BOT_TOKEN: ${BOT_TOKEN:?err}
+    volumes: *common-vols
+    restart: unless-stopped
+    depends_on:
+      advent-bot:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /proc/1/cmdline && dotnet --info >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
